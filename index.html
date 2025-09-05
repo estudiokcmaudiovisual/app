@@ -86,7 +86,7 @@
       transform:translateZ(0) scale(var(--preview-scale)) rotateY(0deg);
       opacity:1; z-index:2;
       background-color:#333333;
-      background-image: url(imagem de fundo será reinserida depois); /* ou image/jpeg */
+      background-image:none; /* background image applied dynamically */
       background-size:cover; background-position:center; background-repeat:no-repeat;
       color:#fff; border-radius:28px; padding:14px 14px 12px;
       display:grid; grid-template-rows:auto auto 1fr auto; row-gap:0; isolation:isolate; overflow:hidden;
@@ -486,7 +486,7 @@
     function setStatusOfflineUI(){
       statusBar.textContent = navigator.onLine ? "" : "Sem conexão — os registros serão enviados automaticamente quando a internet voltar.";
     }
-    window.addEventListener('online', ()=>{ setStatusOfflineUI(); tentarEnviarFila(); });
+    window.addEventListener('online', ()=>{ setStatusOfflineUI(); flushPresenceQueue().catch(()=>{}); });
     window.addEventListener('offline', setStatusOfflineUI);
     setStatusOfflineUI();
 
@@ -517,37 +517,33 @@
         }
       } catch (e) {}
     }
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (!eventoValido || !eventoInput.value.trim()) { mostrarMensagem("Leia o QR do evento para prosseguir.", true); return; }
 
-    // fila offline
-    function getFila(){
-      try{ return JSON.parse(localStorage.getItem('filaRegistros')||'[]'); }
-      catch(e){ return []; }
-    }
-    function setFila(a){ localStorage.setItem('filaRegistros', JSON.stringify(a)); }
-    async function enviarRegistro(r){
-      const fd=new URLSearchParams(); fd.append('nome',r.nome); fd.append('codigo',r.codigo); fd.append('evento',r.evento); fd.append('horario',r.horario);
-      const resp=await fetch(ENDPOINT,{method:'POST',body:fd}); if(!resp.ok) throw new Error('Falha no envio');
-    }
-    async function tentarEnviarFila(){
-      const fila=getFila(); if(!fila.length || !navigator.onLine) return;
-      const rest=[]; for(const it of fila){ try{ await enviarRegistro(it); }catch(e){ rest.push(it); } }
-      setFila(rest); if(fila.length && !rest.length) mostrarMensagem("Registros pendentes enviados com sucesso.", false);
-    }
-    function salvaOffline(r){ const f=getFila(); f.push(r); setFila(f); }
+  const registro = {
+    nome:   (nomeInput.value||"").trim(),
+    codigo: (codigoInput.value||"").trim(),
+    evento: (eventoInput.value||"").trim(),
+    horario: new Date().toLocaleString("pt-BR")
+  };
 
-    form.addEventListener('submit', async (e)=>{
-      e.preventDefault();
-      if(!eventoValido || !eventoInput.value.trim()){ mostrarMensagem("Leia o QR do evento para prosseguir.", true); return; }
-      const registro={ nome:nomeInput.value.trim(), codigo:codigoInput.value.trim(), evento:eventoInput.value.trim(), horario:new Date().toLocaleString('pt-BR') };
-      if(navigator.onLine){
-        try{ await enviarRegistro(registro); mostrarMensagem("Presença registrada com sucesso!", false); bip.play(); }
-        catch(e){ salvaOffline(registro); mostrarMensagem("Sem conexão estável. Registro salvo e será enviado automaticamente.", true); }
-      }else{
-        salvaOffline(registro); mostrarMensagem("Você está offline. Registro salvo e será enviado quando a internet voltar.", true);
-      }
-      eventoInput.value=""; eventoValido=false;
-    });
+  try {
+    const res = await window.registerPresence(registro);
+    // Atualiza a barra de status + mensagem
+    if (res.ok) {
+      mostrarMensagem("Presença registrada com sucesso!", false);
+      try { bip && bip.play(); } catch {}
+    } else {
+      mostrarMensagem("Sem conexão estável. Registro salvo e será enviado automaticamente.", true);
+    }
+  } catch (err) {
+    mostrarMensagem("Não foi possível registrar agora. Salvamos e tentaremos novamente.", true);
+  }
 
+  eventoInput.value = "";
+  eventoValido = false;
+});
     function exibirNaTabela(r){
       const tr=document.createElement('tr'); tr.innerHTML=`<td>${r.horario}</td><td>${r.nome}</td><td>${r.codigo}</td><td>${r.evento}</td>`;
       registrosTabela.prepend(tr);
@@ -602,7 +598,7 @@
 }
 
     // tenta sincronizar ao abrir
-    tentarEnviarFila();
+    flushPresenceQueue().catch(()=>{});
   </script>
 
 <style>
@@ -776,6 +772,450 @@
       }
     });
   }
+})();
+</script>
+<script>
+/**
+ * Salva a querystring e o path quando acessar online (antes de instalar),
+ * e restaura na primeira abertura em modo app (standalone).
+ */
+(function(){
+  const isStandalone = () =>
+    window.matchMedia && window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+
+  // Salvar contexto quando há parâmetros e não está em standalone
+  try {
+    if (location.search && !isStandalone()) {
+      const ctx = { search: location.search, path: location.pathname || '/', ts: Date.now() };
+      localStorage.setItem('pwa:lastCtx', JSON.stringify(ctx));
+    }
+  } catch {}
+
+  // Restaurar uma única vez no primeiro launch em app
+  try {
+    const RESTORE_FLAG = 'pwa:restored';
+    if (isStandalone() && !sessionStorage.getItem(RESTORE_FLAG)) {
+      const raw = localStorage.getItem('pwa:lastCtx');
+      if (raw) {
+        const { search, path, ts } = JSON.parse(raw) || {};
+        const ONE_WEEK = 7*24*60*60*1000;
+        const fresh = !ts || (Date.now() - ts) < ONE_WEEK;
+        if (fresh && search && path) {
+          const target = path + search;
+          const current = location.pathname + location.search;
+          if (current !== target) {
+            sessionStorage.setItem(RESTORE_FLAG, '1');
+            location.replace(target);
+          }
+        }
+      }
+    }
+  } catch {}
+})();
+</script>
+<script>
+/**
+ * API global:
+ *   window.cacheUserProfile({ fullName, memberId, photoUrl })
+ *   window.loadUserProfile() -> Promise<{ fullName, memberId, photoUrl, ts }>
+ *   window.getLaunchParams() -> URLSearchParams (pega params ou restaura do contexto salvo)
+ *
+ * Chame cacheUserProfile assim que tiver os dados (ex.: após login/busca).
+ */
+(function(){
+  const CACHE_NAME = 'cracha-user-v1';
+  const PROFILE_JSON_PATH = '/offline/profile.json';
+  const PROFILE_IMG_PATH  = '/offline/profile-photo.jpg';
+
+  async function cacheUserProfile({ fullName, memberId, photoUrl }) {
+    if (!fullName || !memberId || !photoUrl) {
+      console.warn('[PWA] cacheUserProfile: dados faltando'); return;
+    }
+    // Monta JSON
+    const profile = { fullName, memberId, photoLocal: PROFILE_IMG_PATH, ts: Date.now() };
+    const profileRes = new Response(JSON.stringify(profile), { headers: { 'Content-Type': 'application/json' } });
+
+    // Baixa foto
+    const resp = await fetch(photoUrl, { credentials: 'include' });
+    if (!resp.ok) throw new Error('Falha ao baixar foto');
+    const photoBlob = await resp.blob();
+    const photoRes = new Response(photoBlob, { headers: { 'Content-Type': photoBlob.type || 'image/jpeg' } });
+
+    // Grava no cache
+    const cache = await caches.open(CACHE_NAME);
+    await Promise.all([
+      cache.put(PROFILE_JSON_PATH, profileRes),
+      cache.put(PROFILE_IMG_PATH,  photoRes),
+    ]);
+    localStorage.setItem('pwa:profileCached', '1');
+    console.log('[PWA] Perfil salvo para uso offline');
+  }
+
+  async function loadUserProfile() {
+    try {
+      const cache = await caches.open(CACHE_NAME);
+      const res = await cache.match(PROFILE_JSON_PATH);
+      if (!res) return null;
+      const profile = await res.json();
+      return { ...profile, photoUrl: profile.photoLocal || PROFILE_IMG_PATH };
+    } catch { return null; }
+  }
+
+  function getLaunchParams(){
+    const params = new URLSearchParams(location.search);
+    if ([...params].length) return params;
+    try {
+      const raw = localStorage.getItem('pwa:lastCtx');
+      if (!raw) return params;
+      const { search } = JSON.parse(raw) || {};
+      return search ? new URLSearchParams(search) : params;
+    } catch { return params; }
+  }
+
+  // Expõe no escopo global
+  window.cacheUserProfile = cacheUserProfile;
+  window.loadUserProfile  = loadUserProfile;
+  window.getLaunchParams  = getLaunchParams;
+})();
+</script>
+<style>
+  .pwa-sync-banner{position:fixed;left:0;right:0;bottom:0;z-index:9999;background:#8a1d1d;color:#fff;padding:12px 14px;display:none;box-shadow:0 -6px 20px rgba(0,0,0,.25);font:14px/1.3 system-ui,-apple-system,Segoe UI,Roboto,Arial}
+  .pwa-sync-banner .row{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+  .pwa-sync-banner .title{font-weight:600}
+  .pwa-sync-banner button{border:0;border-radius:10px;padding:10px 14px;cursor:pointer}
+  .pwa-sync-banner .action{background:#fff;color:#8a1d1d}
+  .pwa-sync-banner .close{background:transparent;color:#ffdede;border:1px solid #ffdede}
+</style>
+<div id="syncBanner" class="pwa-sync-banner" role="region" aria-label="Sincronização necessária">
+  <div class="row">
+    <div>
+      <div class="title">Sincronização necessária</div>
+      <div id="syncBannerMsg">Conecte-se à internet uma vez para salvar seus dados e usar o app offline.</div>
+    </div>
+    <div>
+      <button id="syncNowBtn" class="action">Sincronizar agora</button>
+      <button id="syncCloseBtn" class="close" aria-label="Fechar">Fechar</button>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  const CACHE_NAME = 'cracha-user-v1';
+  const PROFILE_JSON_PATH = '/offline/profile.json';
+  const PROFILE_IMG_PATH  = '/offline/profile-photo.jpg';
+
+  const isStandalone = () =>
+    (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone;
+
+  const getParams = () => {
+    if (typeof window.getLaunchParams === 'function') return window.getLaunchParams();
+    return new URLSearchParams(location.search);
+  };
+
+  function base64PuroParaDataURL(b64, mime='image/jpeg'){
+    const clean = (b64||'').replace(/\s+/g,'');
+    return `data:${mime};base64,${clean}`;
+  }
+
+  function ehDataURL(s){ return /^data:image\/[a-zA-Z0-9.+-]+;base64,/.test(s||''); }
+  function pareceBase64(s){ return !!s && /^[A-Za-z0-9+\/=\s]+$/.test(s) && s.replace(/\s+/g,'').length > 100; }
+
+  function blobFromDataURL(dataURL){
+    const arr = dataURL.split(',');
+    const mime = arr[0].match(/data:(.*?);base64/)[1] || 'application/octet-stream';
+    const bstr = atob(arr[1]);
+    let n = bstr.length; const u8 = new Uint8Array(n);
+    while(n--) u8[n] = bstr.charCodeAt(n);
+    return new Blob([u8], { type: mime });
+  }
+
+  async function urlToDataURL(url){
+    const res = await fetch(url, { credentials: 'include' });
+    if (!res.ok) throw new Error('fetch-failed');
+    const blob = await res.blob();
+    return await new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(fr.result);
+      fr.onerror = reject;
+      fr.readAsDataURL(blob);
+    });
+  }
+
+  async function putInCache(path, response){
+    const cache = await caches.open(CACHE_NAME);
+    await cache.put(path, response);
+  }
+
+  async function cacheUserProfileSmart({ fullName, memberId, photo }) {
+    if (!fullName || !memberId) throw new Error('missing-name-or-id');
+
+    let dataURL = null;
+    let reason  = null;
+
+    try {
+      if (ehDataURL(photo)) {
+        dataURL = photo;
+      } else if (pareceBase64(photo)) {
+        dataURL = base64PuroParaDataURL(photo, 'image/jpeg');
+      } else if (photo) {
+        dataURL = await urlToDataURL(photo);
+      }
+    } catch (e) {
+      reason = e && e.message || 'photo-convert-failed';
+    }
+
+    const profile = {
+      fullName, memberId,
+      photoLocal: PROFILE_IMG_PATH,
+      ts: Date.now(),
+      needsPhotoSync: !dataURL
+    };
+    await putInCache(PROFILE_JSON_PATH, new Response(JSON.stringify(profile), { headers: { 'Content-Type': 'application/json' }}));
+
+    if (dataURL) {
+      const blob = blobFromDataURL(dataURL);
+      await putInCache(PROFILE_IMG_PATH, new Response(blob, { headers: { 'Content-Type': blob.type || 'image/jpeg' }}));
+      localStorage.setItem('pwa:profileCached', '1');
+      localStorage.removeItem('pwa:needsPhotoSync');
+    } else {
+      localStorage.setItem('pwa:needsPhotoSync', reason || 'unknown');
+    }
+    console.log('[PWA] Perfil salvo (foto:', dataURL ? 'ok' : 'pendente', ')');
+  }
+  window.cacheUserProfileSmart = cacheUserProfileSmart;
+
+  async function ensureProfileFromURL({ cleanQuery=true } = {}) {
+    try {
+      const params = getParams();
+      const fullName = params.get('name') || params.get('fullname') || params.get('nome');
+      const memberId = params.get('memberId') || params.get('id') || params.get('matricula');
+      let photo = params.get('photo') || params.get('foto') || params.get('image');
+
+      if (!fullName || !memberId) return false;
+
+      if (typeof window.loadUserProfile === 'function') {
+        try {
+          const cached = await window.loadUserProfile();
+          if (cached && String(cached.memberId) === String(memberId) && !cached.needsPhotoSync) return true;
+        } catch {}
+      }
+
+      if (photo && !ehDataURL(photo) && pareceBase64(photo)) {
+        photo = base64PuroParaDataURL(photo, 'image/jpeg');
+      }
+
+      await cacheUserProfileSmart({ fullName, memberId, photo });
+
+      if (cleanQuery && (location.search || '').length > 1 && history.replaceState) {
+        history.replaceState(null, '', location.pathname);
+      }
+      return true;
+    } catch (e) {
+      console.warn('[PWA] ensureProfileFromURL falhou:', e);
+      return false;
+    }
+  }
+  window.ensureProfileFromURL = ensureProfileFromURL;
+})();
+</script>
+<script>
+(function(){
+  const $ = (sel) => document.querySelector(sel);
+  const banner = $('#syncBanner');
+  const btnNow = $('#syncNowBtn');
+  const btnClose = $('#syncCloseBtn');
+  const msg = $('#syncBannerMsg');
+
+  const isStandalone = () =>
+    (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone;
+
+  function showSyncBanner(text){
+    if (!banner) return;
+    if (text) msg && (msg.textContent = text);
+    banner.style.display = 'block';
+  }
+  function hideSyncBanner(){
+    if (!banner) return;
+    banner.style.display = 'none';
+  }
+
+  async function hasOfflineProfile(){
+    try {
+      const cache = await caches.open('cracha-user-v1');
+      const res = await cache.match('/offline/profile.json');
+      return !!res;
+    } catch { return false; }
+  }
+
+  async function maybeShowOnLoad(){
+    if (!isStandalone()) return;
+    const noProfile = !(await hasOfflineProfile());
+    const needPhoto = !!localStorage.getItem('pwa:needsPhotoSync');
+    if (noProfile || needPhoto) {
+      showSyncBanner( noProfile
+        ? 'Conecte-se uma vez para salvar seus dados e usar offline.'
+        : 'Conecte-se para baixar a sua foto e finalizar a sincronização.' );
+    }
+  }
+
+  async function trySyncNow(){
+    if (typeof window.ensureProfileFromURL !== 'function') return;
+    const ok = await window.ensureProfileFromURL({ cleanQuery:false });
+    if (ok) {
+      localStorage.removeItem('pwa:needsPhotoSync');
+      hideSyncBanner();
+      console.log('[PWA] Sincronização concluída.');
+    } else {
+      showSyncBanner('Ainda não foi possível sincronizar. Verifique sua conexão.');
+    }
+  }
+
+  btnNow && btnNow.addEventListener('click', trySyncNow);
+  btnClose && btnClose.addEventListener('click', hideSyncBanner);
+
+  window.addEventListener('online', () => {
+    trySyncNow();
+  });
+
+  window.addEventListener('load', () => {
+    if (navigator.onLine) {
+      trySyncNow().then(ok => { if (!ok) maybeShowOnLoad(); });
+    } else {
+      maybeShowOnLoad();
+    }
+  });
+})();
+</script>
+
+<style>
+  .pwa-toasts{position:fixed;left:50%;transform:translateX(-50%);bottom:16px;z-index:10000;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+  .pwa-toast{min-width:260px;max-width:90vw;background:#111;color:#fff;padding:10px 14px;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.25);font:14px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Arial;pointer-events:auto}
+  .pwa-toast.success{background:#115e24}
+  .pwa-toast.warn{background:#8a1d1d}
+  .pwa-toast.info{background:#0b57d0}
+  .pwa-toast .title{font-weight:600;margin-bottom:2px}
+</style>
+<div id="pwaToasts" class="pwa-toasts" aria-live="polite" aria-atomic="true"></div>
+<script>
+(function(){
+  function showToast({title, text, kind='info', ms=3500}){
+    const wrap=document.getElementById('pwaToasts'); if(!wrap) return;
+    const el=document.createElement('div'); el.className='pwa-toast '+kind;
+    el.innerHTML=(title?'<div class="title">'+title+'</div>':'')+(text||'');
+    wrap.appendChild(el);
+    setTimeout(()=>{ el.style.opacity='0'; el.style.transition='opacity .2s'; }, Math.max(0,ms-180));
+    setTimeout(()=>{ el.remove(); }, ms);
+  }
+  window.PWA_TOAST={ show:showToast };
+})();
+</script>
+
+<script>
+/**
+ * Registro de presença com IndexedDB (fila offline) + retry automático.
+ * - Mantém o formato application/x-www-form-urlencoded (compatível com Apps Script original).
+ * - Usa a constante ENDPOINT se existir no escopo da página; senão, window.PRESENCE_ENDPOINT.
+ * API:
+ *   await registerPresence({ nome, codigo, evento, horario })
+ *   flushPresenceQueue()
+ */
+(function(){
+  const ENDPOINT = (typeof window.ENDPOINT === 'string' && window.ENDPOINT) || window.PRESENCE_ENDPOINT || '/api/presence';
+  const DB_NAME = 'cracha-db';
+  const STORE   = 'presenceQueue';
+
+  // ===== IndexedDB helpers
+  function withDB(cb){
+    return new Promise((resolve,reject)=>{
+      const open=indexedDB.open(DB_NAME, 3);
+      open.onupgradeneeded=()=>{ const db=open.result; if(!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE,{keyPath:'id',autoIncrement:true}); };
+      open.onsuccess=()=>cb(open.result).then(resolve,reject);
+      open.onerror =()=>reject(open.error);
+    });
+  }
+  function enqueue(payload){
+    return withDB(db=>new Promise((res,rej)=>{
+      const tx=db.transaction(STORE,'readwrite'); tx.objectStore(STORE).add({payload, createdAt:Date.now()});
+      tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error);
+    }));
+  }
+  function allQueue(){
+    return withDB(db=>new Promise((res,rej)=>{
+      const out=[]; const tx=db.transaction(STORE,'readonly'); const req=tx.objectStore(STORE).openCursor();
+      req.onsuccess=()=>{ const c=req.result; if(c){ out.push({id:c.key, ...c.value}); c.continue(); } else res(out); };
+      req.onerror=()=>rej(req.error);
+    }));
+  }
+  function removeId(id){
+    return withDB(db=>new Promise((res,rej)=>{
+      const tx=db.transaction(STORE,'readwrite'); tx.objectStore(STORE).delete(id);
+      tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error);
+    }));
+  }
+
+  // ===== POST form-urlencoded (igual ao código original)
+  async function postForm(url, data, { timeoutMs=10000 }={}){
+    const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(), timeoutMs);
+    try{
+      const fd=new URLSearchParams();
+      Object.keys(data||{}).forEach(k=>fd.append(k, data[k]));
+      const r=await fetch(url,{ method:'POST', body:fd, credentials:'include', signal:ctrl.signal });
+      if(!r.ok) throw new Error('http-'+r.status);
+      return await r.text().catch(()=> '');
+    } finally { clearTimeout(t); }
+  }
+
+  async function flushPresenceQueue(){
+    const q = await allQueue();
+    if(!q.length || !navigator.onLine) return;
+    for (const it of q){
+      try{
+        await postForm(ENDPOINT, it.payload);
+        await removeId(it.id);
+      }catch(e){ /* mantém na fila */ }
+    }
+  }
+
+  async function registerPresence(payload){
+    // payload esperado: { nome, codigo, evento, horario }
+    const enriched = { ...payload, ua:navigator.userAgent, ts:Date.now() };
+    if(navigator.onLine){
+      try{
+        await postForm(ENDPOINT, enriched);
+        window.PWA_TOAST && PWA_TOAST.show({ title:'Presença', text:'Registro enviado com sucesso.', kind:'success' });
+        // drena qualquer fila antiga
+        flushPresenceQueue().catch(()=>{});
+        return { ok:true, queued:false };
+      }catch(e){
+        // cai para fila
+      }
+    }
+    await enqueue(enriched);
+    window.PWA_TOAST && PWA_TOAST.show({ title:'Presença', text:'Sem conexão. Registro salvo e será enviado quando a internet voltar.', kind:'warn', ms:5000 });
+    return { ok:false, queued:true };
+  }
+
+  // Migração de localStorage → IndexedDB (filaRegistros), compatível com seu código original
+  (async function migrateLocalStorageQueueOnce(){
+    try{
+      const MIG_KEY='pwa:migrated:filaRegistros';
+      if(localStorage.getItem(MIG_KEY)==='1') return;
+      const raw=localStorage.getItem('filaRegistros'); if(!raw) return localStorage.setItem(MIG_KEY,'1');
+      const arr=JSON.parse(raw||'[]'); if(Array.isArray(arr) && arr.length){
+        for(const r of arr){ try{ await enqueue(r); }catch{} }
+      }
+      localStorage.removeItem('filaRegistros');
+      localStorage.setItem(MIG_KEY,'1');
+    }catch{}
+  })();
+
+  // Eventos para flush automático
+  window.addEventListener('online', ()=> flushPresenceQueue().catch(()=>{}));
+  window.addEventListener('load',  ()=> { if(navigator.onLine) flushPresenceQueue().catch(()=>{}); });
+
+  // expõe API
+  window.registerPresence     = registerPresence;
+  window.flushPresenceQueue   = flushPresenceQueue;
 })();
 </script>
 </body>
