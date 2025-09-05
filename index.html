@@ -778,5 +778,109 @@
   }
 })();
 </script>
+<script>
+/**
+ * Salva a querystring e o path quando acessar online (antes de instalar),
+ * e restaura na primeira abertura em modo app (standalone).
+ */
+(function(){
+  const isStandalone = () =>
+    window.matchMedia && window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+
+  // Salvar contexto quando há parâmetros e não está em standalone
+  try {
+    if (location.search && !isStandalone()) {
+      const ctx = { search: location.search, path: location.pathname || '/', ts: Date.now() };
+      localStorage.setItem('pwa:lastCtx', JSON.stringify(ctx));
+    }
+  } catch {}
+
+  // Restaurar uma única vez no primeiro launch em app
+  try {
+    const RESTORE_FLAG = 'pwa:restored';
+    if (isStandalone() && !sessionStorage.getItem(RESTORE_FLAG)) {
+      const raw = localStorage.getItem('pwa:lastCtx');
+      if (raw) {
+        const { search, path, ts } = JSON.parse(raw) || {};
+        const ONE_WEEK = 7*24*60*60*1000;
+        const fresh = !ts || (Date.now() - ts) < ONE_WEEK;
+        if (fresh && search && path) {
+          const target = path + search;
+          const current = location.pathname + location.search;
+          if (current !== target) {
+            sessionStorage.setItem(RESTORE_FLAG, '1');
+            location.replace(target);
+          }
+        }
+      }
+    }
+  } catch {}
+})();
+</script>
+<script>
+/**
+ * API global:
+ *   window.cacheUserProfile({ fullName, memberId, photoUrl })
+ *   window.loadUserProfile() -> Promise<{ fullName, memberId, photoUrl, ts }>
+ *   window.getLaunchParams() -> URLSearchParams (pega params ou restaura do contexto salvo)
+ *
+ * Chame cacheUserProfile assim que tiver os dados (ex.: após login/busca).
+ */
+(function(){
+  const CACHE_NAME = 'cracha-user-v1';
+  const PROFILE_JSON_PATH = '/offline/profile.json';
+  const PROFILE_IMG_PATH  = '/offline/profile-photo.jpg';
+
+  async function cacheUserProfile({ fullName, memberId, photoUrl }) {
+    if (!fullName || !memberId || !photoUrl) {
+      console.warn('[PWA] cacheUserProfile: dados faltando'); return;
+    }
+    // Monta JSON
+    const profile = { fullName, memberId, photoLocal: PROFILE_IMG_PATH, ts: Date.now() };
+    const profileRes = new Response(JSON.stringify(profile), { headers: { 'Content-Type': 'application/json' } });
+
+    // Baixa foto
+    const resp = await fetch(photoUrl, { credentials: 'include' });
+    if (!resp.ok) throw new Error('Falha ao baixar foto');
+    const photoBlob = await resp.blob();
+    const photoRes = new Response(photoBlob, { headers: { 'Content-Type': photoBlob.type || 'image/jpeg' } });
+
+    // Grava no cache
+    const cache = await caches.open(CACHE_NAME);
+    await Promise.all([
+      cache.put(PROFILE_JSON_PATH, profileRes),
+      cache.put(PROFILE_IMG_PATH,  photoRes),
+    ]);
+    localStorage.setItem('pwa:profileCached', '1');
+    console.log('[PWA] Perfil salvo para uso offline');
+  }
+
+  async function loadUserProfile() {
+    try {
+      const cache = await caches.open(CACHE_NAME);
+      const res = await cache.match(PROFILE_JSON_PATH);
+      if (!res) return null;
+      const profile = await res.json();
+      return { ...profile, photoUrl: profile.photoLocal || PROFILE_IMG_PATH };
+    } catch { return null; }
+  }
+
+  function getLaunchParams(){
+    const params = new URLSearchParams(location.search);
+    if ([...params].length) return params;
+    try {
+      const raw = localStorage.getItem('pwa:lastCtx');
+      if (!raw) return params;
+      const { search } = JSON.parse(raw) || {};
+      return search ? new URLSearchParams(search) : params;
+    } catch { return params; }
+  }
+
+  // Expõe no escopo global
+  window.cacheUserProfile = cacheUserProfile;
+  window.loadUserProfile  = loadUserProfile;
+  window.getLaunchParams  = getLaunchParams;
+})();
+</script>
 </body>
 </html>
