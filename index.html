@@ -1,4 +1,4 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-br">
 <head>
   <meta charset="UTF-8" />
@@ -296,6 +296,7 @@
   <script>
     /* ========= CONFIG ========= */
     const ENDPOINT = "https://script.google.com/macros/s/AKfycbwHk6o909wUncUcY0g0nRgJSpiZ-ZI7MtZjxMRCTrVU2yh9zm_M9uULA6SBYnTcuL0mEw/exec";
+    window.ENDPOINT = ENDPOINT; // disponibiliza para módulos posteriores
     const CARD_WIDTH=638, CARD_HEIGHT=1011, QR_SIZE=170;
     const px2mm = p => p * 0.264583;
 
@@ -360,7 +361,7 @@
     function triggerDownload(u,f){ const a=document.createElement('a'); a.href=u; a.download=f; document.body.appendChild(a); a.click(); a.remove(); }
 
     async function prefillFromCacheThenURL(){
-      // 1) Tenta dados do perfil offline (se existir)
+      // 1) Perfil offline (se existir)
       try{
         if (typeof window.loadUserProfile === 'function') {
           const prof = await window.loadUserProfile();
@@ -369,7 +370,7 @@
           }
         }
       }catch{}
-      // 2) Aplica querystring (se houver)
+      // 2) Querystring (se houver)
       const p   = new URLSearchParams(location.search);
       const name  = p.get('name') || p.get('nome') || '';
       const code  = p.get('code') || p.get('memberid') || p.get('memberId') || p.get('matricula') || '';
@@ -439,6 +440,7 @@
     });
     flipToFront.addEventListener('click', ()=>{ showFront(); stopQR(); });
 
+    // Impede edição manual do campo de evento
     ['keydown','keypress','keyup','paste','drop','input','focus'].forEach(evt=>{
       eventoInput.addEventListener(evt,e=>{
         if(evt!=='focus') e.preventDefault();
@@ -450,7 +452,7 @@
     function setStatusOfflineUI(){
       statusBar.textContent = navigator.onLine ? "" : "Sem conexão — os registros serão enviados automaticamente quando a internet voltar.";
     }
-    window.addEventListener('online', ()=>{ setStatusOfflineUI(); flushPresenceQueue().catch(()=>{}); });
+    window.addEventListener('online', ()=>{ setStatusOfflineUI(); (window.flushPresenceQueue&&flushPresenceQueue().catch(()=>{})); });
     window.addEventListener('offline', setStatusOfflineUI);
     setStatusOfflineUI();
 
@@ -482,6 +484,7 @@
       } catch (e) {}
     }
 
+    // Envio do formulário usando a fila IndexedDB
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       if (!eventoValido || !eventoInput.value.trim()) { mostrarMensagem("Leia o QR do evento para prosseguir.", true); return; }
@@ -599,7 +602,7 @@
       const profile = { fullName, memberId, photoLocal: PROFILE_IMG_PATH, ts: Date.now() };
       const profileRes = new Response(JSON.stringify(profile), { headers: { 'Content-Type': 'application/json' } });
 
-      // IMPORTANTE: não usar credentials:'include' para evitar CORS com credenciais
+      // IMPORTANTE: sem credentials para reduzir CORS com credenciais
       const resp = await fetch(photoUrl);
       if (!resp.ok) throw new Error('Falha ao baixar foto');
       const photoBlob = await resp.blob();
@@ -755,8 +758,6 @@
       }
     }
 
-    const btnNow = document.getElementById('syncNowBtn');
-    const btnClose = document.getElementById('syncCloseBtn');
     btnNow && btnNow.addEventListener('click', trySyncNow);
     btnClose && btnClose.addEventListener('click', hideSyncBanner);
 
