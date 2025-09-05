@@ -1086,7 +1086,6 @@ form.addEventListener("submit", async (e) => {
   });
 })();
 </script>
-
 <style>
   .pwa-toasts{position:fixed;left:50%;transform:translateX(-50%);bottom:16px;z-index:10000;display:flex;flex-direction:column;gap:8px;pointer-events:none}
   .pwa-toast{min-width:260px;max-width:90vw;background:#111;color:#fff;padding:10px 14px;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.25);font:14px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Arial;pointer-events:auto}
@@ -1113,8 +1112,8 @@ form.addEventListener("submit", async (e) => {
 <script>
 /**
  * Registro de presença com IndexedDB (fila offline) + retry automático.
- * - Mantém o formato application/x-www-form-urlencoded (compatível com Apps Script original).
- * - Usa a constante ENDPOINT se existir no escopo da página; senão, window.PRESENCE_ENDPOINT.
+ * Mantém o formato application/x-www-form-urlencoded (compatível com Apps Script).
+ * Usa a constante global ENDPOINT (se existir) ou window.PRESENCE_ENDPOINT.
  * API:
  *   await registerPresence({ nome, codigo, evento, horario })
  *   flushPresenceQueue()
@@ -1177,17 +1176,17 @@ form.addEventListener("submit", async (e) => {
   }
 
   async function registerPresence(payload){
-    // payload esperado: { nome, codigo, evento, horario }
+    // payload: { nome, codigo, evento, horario }
     const enriched = { ...payload, ua:navigator.userAgent, ts:Date.now() };
     if(navigator.onLine){
       try{
         await postForm(ENDPOINT, enriched);
         window.PWA_TOAST && PWA_TOAST.show({ title:'Presença', text:'Registro enviado com sucesso.', kind:'success' });
-        // drena qualquer fila antiga
+        // drena fila antiga (se existir)
         flushPresenceQueue().catch(()=>{});
         return { ok:true, queued:false };
       }catch(e){
-        // cai para fila
+        // falhou online → cai para fila
       }
     }
     await enqueue(enriched);
@@ -1195,7 +1194,7 @@ form.addEventListener("submit", async (e) => {
     return { ok:false, queued:true };
   }
 
-  // Migração de localStorage → IndexedDB (filaRegistros), compatível com seu código original
+  // Migração de localStorage → IndexedDB (compatível com código original)
   (async function migrateLocalStorageQueueOnce(){
     try{
       const MIG_KEY='pwa:migrated:filaRegistros';
@@ -1214,8 +1213,8 @@ form.addEventListener("submit", async (e) => {
   window.addEventListener('load',  ()=> { if(navigator.onLine) flushPresenceQueue().catch(()=>{}); });
 
   // expõe API
-  window.registerPresence     = registerPresence;
-  window.flushPresenceQueue   = flushPresenceQueue;
+  window.registerPresence   = registerPresence;
+  window.flushPresenceQueue = flushPresenceQueue;
 })();
 </script>
 </body>
