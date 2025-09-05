@@ -6,13 +6,17 @@
   <title>Crachá Digital — Frente/Verso (offline + câmera)</title>
 
   <!-- PWA -->
-  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="manifest" href="/manifest.webmanifest">
   <meta name="theme-color" content="#111111">
+
+  <!-- Android -->
   <meta name="mobile-web-app-capable" content="yes">
+
+  <!-- iOS / Safari -->
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Crachá">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <link rel="apple-touch-icon" href="./icon-192.png">
 
   <!-- Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;700&family=Inter:wght@400;600&display=swap" rel="stylesheet" />
@@ -299,7 +303,6 @@
       <div class="top-actions">
         <button class="btn-outline" id="flipToBack">Registrar Presença</button>
         <button class="btn-outline" id="flipToFront" style="display:none">Voltar ao crachá</button>
-        <button class="btn-outline btn-danger" id="resetApp">Reiniciar app (limpar cache)</button>
       </div>
     </div>
   </div>
@@ -598,17 +601,182 @@
   location.reload();
 }
 
-    // SW (para offline)
-    if('serviceWorker' in navigator){
-      window.addEventListener('load', ()=> navigator.serviceWorker.register('./sw.js').catch(()=>{}));
-    }
-
     // tenta sincronizar ao abrir
     tentarEnviarFila();
-
-    // Listener do botão reset
-    const resetBtn = document.getElementById('resetApp');
-    if (resetBtn) resetBtn.addEventListener('click', handleResetClick);
   </script>
+
+<style>
+  .pwa-install-banner{position:fixed;left:0;right:0;bottom:0;z-index:9999;background:#111;color:#fff;padding:12px 14px;display:none;box-shadow:0 -6px 20px rgba(0,0,0,.25);font:14px/1.3 system-ui,-apple-system,Segoe UI,Roboto,Arial}
+  .pwa-install-banner .row{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+  .pwa-install-banner .title{font-weight:600}
+  .pwa-install-banner button{border:0;border-radius:10px;padding:10px 14px;cursor:pointer}
+  .pwa-install-banner .install{background:#0b57d0;color:#fff}
+  .pwa-install-banner .close{background:#333;color:#ddd}
+  .pwa-install-banner .hint{font-size:13px;opacity:.9;margin-top:2px}
+</style>
+
+<div id="pwaBanner" class="pwa-install-banner" role="region" aria-label="Instalar aplicativo">
+  <div class="row">
+    <div>
+      <div class="title">Instale “Crachá Digital - IISNHCM”</div>
+      <div id="pwaHint" class="hint"></div>
+    </div>
+    <div>
+      <button id="pwaInstallBtn" class="install" style="display:none">Instalar app</button>
+      <button id="pwaCloseBtn" class="close" aria-label="Fechar">Agora não</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const banner = document.getElementById('pwaBanner');
+  const installBtn = document.getElementById('pwaInstallBtn');
+  const closeBtn = document.getElementById('pwaCloseBtn');
+  const hint = document.getElementById('pwaHint');
+
+  const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+  const UA = navigator.userAgent.toLowerCase();
+  const isIOS = /iphone|ipad|ipod/.test(UA);
+  const isAndroid = /android/.test(UA);
+  const isSafari = /^((?!chrome|crios|fxios|edgios|android).)*safari/.test(navigator.userAgent);
+  const isChrome = /chrome|crios/.test(navigator.userAgent) && !/edg/i.test(navigator.userAgent);
+  const isEdge = /edg\//i.test(navigator.userAgent);
+
+  let deferredPrompt;
+
+  function showBanner() {
+    if (isStandalone()) return; // já “instalado”
+    banner.style.display = 'block';
+  }
+
+  function setHintTextForPlatform() {
+    if (isIOS && isSafari) {
+      hint.innerHTML = 'iPhone/iPad: toque em <strong>Compartilhar</strong> (quadrado com seta) → <strong>Adicionar à Tela de Início</strong>.';
+      return;
+    }
+    if (!isIOS && isSafari) {
+      hint.innerHTML = 'Safari (macOS): Abra <strong>Arquivo → Adicionar à Dock</strong> (ou compartilhe → <strong>Adicionar à Dock</strong> no Sonoma+)';
+      return;
+    }
+    if (isAndroid && isChrome) {
+      hint.innerHTML = 'Android/Chrome: se o botão não aparecer, use o menu ⋮ → <strong>Instalar app</strong>.';
+      return;
+    }
+    if (isAndroid && isEdge) {
+      hint.innerHTML = 'Android/Microsoft Edge: menu ⋮ → <strong>Instalar este site como app</strong>.';
+      return;
+    }
+    hint.textContent = 'Dica: procure a opção de instalar/adicionar à tela inicial no menu do navegador.';
+  }
+
+  // Android/Chrome/Edge: capturar o evento oficial
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    setHintTextForPlatform();
+    installBtn.style.display = 'inline-block';
+    showBanner();
+  });
+
+  // Fallbacks: iOS/Safari e outros
+  window.addEventListener('load', () => {
+    if (isStandalone()) return;
+    // Se não veio o beforeinstallprompt em ~2s, mostramos instruções por plataforma
+    setTimeout(() => {
+      if (!deferredPrompt) {
+        setHintTextForPlatform();
+        installBtn.style.display = 'none';
+        showBanner();
+      }
+    }, 2000);
+  });
+
+  installBtn?.addEventListener('click', async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    banner.style.display = 'none';
+  });
+
+  closeBtn?.addEventListener('click', () => banner.style.display = 'none');
+
+  // Garantir registro do SW se não houver em outro lugar
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.getRegistration().then(reg => {
+        if (!reg) navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(()=>{});
+      });
+    });
+  }
+})();
+</script>
+
+<script>
+(function(){
+  // Seletor do crachá — AJUSTAR para o elemento correto:
+  const crachaEl = document.querySelector('#cracha, #cardFront, .card'); // tente por id; mantenha alternativas
+
+  // Fallback de limpeza caso resetAppData não exista
+  async function fallbackReset() {
+    try { localStorage && localStorage.clear && localStorage.clear(); } catch {}
+    try {
+      if (window.caches && caches.keys) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map(k => caches.delete(k)));
+      }
+    } catch {}
+    try {
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map(r => r.unregister().catch(()=>{})));
+      }
+    } catch {}
+    try {
+      if (window.indexedDB && typeof indexedDB.databases === 'function') {
+        const dbs = await indexedDB.databases();
+        await Promise.all((dbs || []).map(db => {
+          if (!db || !db.name) return Promise.resolve();
+          return new Promise(res => {
+            const req = indexedDB.deleteDatabase(db.name);
+            req.onsuccess = req.onerror = req.onblocked = () => res();
+          });
+        }));
+      }
+    } catch {}
+    // reload para pegar SW novo/estado limpo
+    location.reload();
+  }
+
+  // Triple-click detector (3 cliques em 1200ms)
+  if (crachaEl) {
+    let clicks = 0, firstTs = 0, TIMER = null, WINDOW_MS = 1200;
+
+    crachaEl.addEventListener('click', async () => {
+      const now = Date.now();
+      if (!firstTs || now - firstTs > WINDOW_MS) {
+        firstTs = now; clicks = 1;
+      } else {
+        clicks++;
+      }
+
+      clearTimeout(TIMER);
+      TIMER = setTimeout(() => { clicks = 0; firstTs = 0; }, WINDOW_MS);
+
+      if (clicks >= 3) {
+        clicks = 0; firstTs = 0; clearTimeout(TIMER);
+        const ok = confirm('Deseja limpar dados do aplicativo? (cache, SW, IndexedDB)');
+        if (!ok) return;
+        if (typeof window.resetAppData === 'function') {
+          try { await window.resetAppData(); } catch {}
+        } else {
+          await fallbackReset();
+        }
+      }
+    });
+  }
+})();
+</script>
 </body>
 </html>
