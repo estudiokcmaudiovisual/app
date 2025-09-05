@@ -1,6 +1,7 @@
 // sw.js
 // Versione o cache ao alterar assets/estratégia:
 const CACHE = 'cracha-presenca-v3';
+const USER_CACHE = 'cracha-user-v1';
 
 const ASSETS = [
   '/', '/index.html', '/manifest.webmanifest',
@@ -35,6 +36,16 @@ self.addEventListener('activate', (e) => {
 
 // Network-first para navegação (HTML); cache-first para estáticos.
 self.addEventListener('fetch', (e) => {
+  try {
+    const url = new URL(e.request.url);
+    if (url.pathname === '/offline/profile.json' || url.pathname === '/offline/profile-photo.jpg') {
+      e.respondWith(
+        caches.open(USER_CACHE).then(c => c.match(url.pathname)).then(r => r || fetch(e.request))
+      );
+      return;
+    }
+  } catch {}
+
   const req = e.request;
   if (req.method !== 'GET') return;
 
