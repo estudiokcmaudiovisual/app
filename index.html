@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang="pt-br">
 <head>
   <meta charset="UTF-8" />
@@ -30,9 +30,7 @@
 
   <style>
     :root {
-      /* Essa variável passa a ser controlada via JS para caber no viewport */
       --preview-scale: 0.38;
-
       --primary:#1e88e5; --bg:#f9f9f9; --text:#333; --border:#ddd;
       --danger:#b00020; --success:#2e7d32; --muted:#9aa0a6;
     }
@@ -47,14 +45,8 @@
     button{ padding:10px 14px; border:none; border-radius:10px; background:#111; color:#fff; cursor:pointer; }
     button:hover{ opacity:.92; }
 
-    .preview-card{
-      background:transparent; border-radius:12px; padding:10px; box-shadow:none;
-      max-width:100%;
-      margin:0 auto;
-    }
+    .preview-card{ background:transparent; border-radius:12px; padding:10px; box-shadow:none; max-width:100%; margin:0 auto; }
 
-    /* A largura/altura reais do cartão (em px) ficam aqui.
-       O JS ajusta --preview-scale para caber na largura disponível */
     .preview-wrap{
       --card-w:638px; --card-h:1011px;
       width:calc(var(--card-w)*var(--preview-scale));
@@ -65,126 +57,67 @@
       transition: width .15s ease, height .15s ease;
     }
 
-    /* contêiner 3D */
-    .card-3d{
-      position:absolute; inset:0;
-      transform-style:preserve-3d; -webkit-transform-style:preserve-3d;
-    }
+    .card-3d{ position:absolute; inset:0; transform-style:preserve-3d; -webkit-transform-style:preserve-3d; }
 
-    /* Giramos as FACES, não o contêiner */
     .card, .back{
       width:var(--card-w); height:var(--card-h);
-      position:absolute; left:0; top:0;
-      transform-origin:top left;
+      position:absolute; left:0; top:0; transform-origin:top left;
       backface-visibility:hidden; -webkit-backface-visibility:hidden;
       will-change:transform, opacity;
       transition: transform .7s cubic-bezier(.2,.7,.2,1), opacity .25s ease;
     }
 
-    /* Estado inicial: FRENTE visível */
     .card{
       transform:translateZ(0) scale(var(--preview-scale)) rotateY(0deg);
-      opacity:1; z-index:2;
-      background-color:#333333;
-      background-image:none; /* background image applied dynamically */
+      opacity:1; z-index:2; background-color:#333333; background-image:none;
       background-size:cover; background-position:center; background-repeat:no-repeat;
       color:#fff; border-radius:28px; padding:14px 14px 12px;
       display:grid; grid-template-rows:auto auto 1fr auto; row-gap:0; isolation:isolate; overflow:hidden;
       box-shadow:0 4px 12px rgba(0,0,0,.15);
     }
-    /* Frente quando verso ativo */
     .card-3d.is-back .card{
       transform:translateZ(0) scale(var(--preview-scale)) rotateY(180deg);
       opacity:0; z-index:1; pointer-events:none;
     }
 
-    /* VERSO (inicialmente invertido) */
     .back{
       transform:translateZ(0) scale(var(--preview-scale)) rotateY(180deg);
-      opacity:0; z-index:1;
-      background-color:#333333;
-      /* background-image:url(./bg-verso.jpg); */
+      opacity:0; z-index:1; background-color:#333333;
       background-size:cover; background-position:center; background-repeat:no-repeat;
       color:#fff; border-radius:28px; padding:14px 14px 12px;
       display:grid; grid-template-rows:1fr; isolation:isolate; overflow:hidden;
       box-shadow:0 4px 12px rgba(0,0,0,.15);
     }
-    /* Verso quando ativo */
-    .card-3d.is-back .back{
-      transform:translateZ(0) scale(var(--preview-scale)) rotateY(0deg);
-      opacity:1; z-index:2;
-    }
+    .card-3d.is-back .back{ transform:translateZ(0) scale(var(--preview-scale)) rotateY(0deg); opacity:1; z-index:2; }
 
-    /* Fallback sem 3D */
     .no-3d .card-3d .card{ display:block; opacity:1; }
     .no-3d .card-3d .back{ display:none; opacity:0; }
     .no-3d.back-visible .card-3d .card{ display:none; opacity:0; }
     .no-3d.back-visible .card-3d .back{ display:grid; opacity:1; transform:scale(var(--preview-scale)); }
 
     .bg-layer{ position:absolute; inset:0; background-size:cover; background-position:center; background-repeat:no-repeat; opacity:1; z-index:1; border-radius:28px; }
-.brand-row{ z-index:2; display:flex; justify-content:center; align-items:center; padding-top:2px; }
-.logo-main{ max-height:250px; width:auto; height:auto; display:block; filter:brightness(1.05); max-width:90%; }
-.profile-block{ z-index:2; display:grid; justify-items:center; align-items:start; row-gap:0; margin-top:6px; margin-bottom:0; padding:0 12px; }
-.photo{ z-index:2; width:min(40%, 240px); aspect-ratio:1/1; border-radius:250px; object-fit:cover; border:4px solid rgba(255,255,255,.85); background:rgba(255,255,255,.15); display:block; margin:0; justify-self:center; }
-.info{ z-index:2; display:grid; gap:0; align-content:start; justify-items:center; text-align:center; padding:0; margin:0; }
-.name{ font-size:clamp(20px, 3.4vw, 36px); font-weight:700; margin:8px 0 0; line-height:1.05; text-shadow:0 1px 4px rgba(0,0,0,.35); }
-.code{ font-size:clamp(8px, 1.6vw, 12px); margin:0; line-height:1.3; opacity:.85; text-shadow:0 1px 2px rgba(0,0,0,.25); }
+    .brand-row{ z-index:2; display:flex; justify-content:center; align-items:center; padding-top:2px; }
+    .logo-main{ max-height:250px; width:auto; height:auto; display:block; filter:brightness(1.05); max-width:90%; }
+    .profile-block{ z-index:2; display:grid; justify-items:center; align-items:start; row-gap:0; margin-top:6px; margin-bottom:0; padding:0 12px; }
+    .photo{ z-index:2; width:min(40%, 240px); aspect-ratio:1/1; border-radius:250px; object-fit:cover; border:4px solid rgba(255,255,255,.85); background:rgba(255,255,255,.15); display:block; margin:0; justify-self:center; }
+    .info{ z-index:2; display:grid; gap:0; align-content:start; justify-items:center; text-align:center; padding:0; margin:0; }
+    .name{ font-size:clamp(20px, 3.4vw, 36px); font-weight:700; margin:8px 0 0; line-height:1.05; text-shadow:0 1px 4px rgba(0,0,0,.35); }
+    .code{ font-size:clamp(8px, 1.6vw, 12px); margin:0; line-height:1.3; opacity:.85; text-shadow:0 1px 2px rgba(0,0,0,.25); }
 
-/* QR acima do footer + mais fundo branco para baixo */
-.qr-section{
-  position: relative;
-  z-index: 3;               /* fica acima do footer */
-  display:grid; 
-  place-items:center; 
-  padding:8px 0; 
-  margin-top:-24px; 
-  margin-bottom:64px;       /* folga entre o QR e o footer */
-}
-.qr{
-  width:min(200px, 50%);    
-  min-height:190px;         /* aumenta a “caixa” branca (altura mínima) */
-  height:auto;              /* evita corte quando o padding muda */
-  background:#fff; 
-  border-radius:12px; 
-  padding:10px 10px 36px;   /* bottom maior para criar a “cauda” */
-  display:grid; 
-  justify-items:center; 
-  align-items:start;        /* cola o QR no topo da área útil */
-}
+    .qr-section{ position: relative; z-index: 3; display:grid; place-items:center; padding:8px 0; margin-top:-24px; margin-bottom:64px; }
+    .qr{
+      width:min(200px, 50%); min-height:190px; height:auto; background:#fff;
+      border-radius:12px; padding:10px 10px 36px; display:grid; justify-items:center; align-items:start;
+    }
 
-.footer-row{ 
-  z-index:1;                /* footer fica abaixo do QR */
-  display:flex; 
-  align-items:center; 
-  justify-content:center; 
-  gap:10px; 
-  padding:8px 10px; 
-  margin-bottom:50px; 
-  position:relative; 
-  background:rgba(51,51,51,0.00); 
-  border-radius:12px; 
-  flex-wrap:wrap; 
-}
-.foot-logo{ max-height:60px; max-width:40%; height:auto; }
-.footer-text{ font-size:12px; color:#fff; line-height:1.3; text-align:justify; max-width:350px; text-shadow:0 1px 3px rgba(0,0,0,.35); }
-.protocol{ 
-  position:absolute; 
-  bottom:-30px;             /* era -30px, para não invadir o QR */
-  left:50%; 
-  transform:translateX(-50%); 
-  font-size:10px; 
-  text-shadow:0 1px 2px rgba(0,0,0,.35); 
-  background:rgb(150,29,19,0.85); 
-  color:#fff; 
-  padding:4px 10px; 
-  border-radius:6px; 
-  white-space:nowrap; 
-}
+    .footer-row{ z-index:1; display:flex; align-items:center; justify-content:center; gap:10px; padding:8px 10px; margin-bottom:50px; position:relative; background:rgba(51,51,51,0.00); border-radius:12px; flex-wrap:wrap; }
+    .foot-logo{ max-height:60px; max-width:40%; height:auto; }
+    .footer-text{ font-size:12px; color:#fff; line-height:1.3; text-align:justify; max-width:350px; text-shadow:0 1px 3px rgba(0,0,0,.35); }
+    .protocol{ position:absolute; bottom:-30px; left:50%; transform:translateX(-50%); font-size:10px; text-shadow:0 1px 2px rgba(0,0,0,.35); background:rgb(150,29,19,0.85); color:#fff; padding:4px 10px; border-radius:6px; white-space:nowrap; }
 
     .barcode-rail{ position:absolute; right:10px; top:5%; transform: translateY(-50%); z-index:2; pointer-events:none; }
     .barcode-rot{ display:inline-block; transform: rotate(-90deg); transform-origin: right center; }
 
-    /* Painel branco do verso */
     .badge-panel{
       width:min(92%, 600px); background:#fff; border-radius:12px;
       box-shadow:0 4px 10px rgba(0,0,0,0.05); padding:20px;
@@ -215,18 +148,38 @@
     .btn-danger { border:1px solid #b00020; color:#b00020; }
     .btn-danger:hover { background:#b00020; color:#fff; }
 
-    /* Pequenos ajustes para viewports estreitos e baixos */
     @media (max-width: 560px){
-      body{ padding:12px; }
-      .wrap{ padding:0; }
-      .footer-text{ max-width:100%; }
-      .foot-logo{ max-width:48%; }
+      body{ padding:12px; } .wrap{ padding:0; } .footer-text{ max-width:100%; } .foot-logo{ max-width:48%; }
       .protocol{ position:static; transform:none; margin-top:8px; }
     }
     @media (max-height: 700px){
       .qr{ width:min(190px, 45%); height:min(190px, 45%); }
       .logo-main{ max-height:200px; }
     }
+
+    /* Toasts */
+    .pwa-toasts{position:fixed;left:50%;transform:translateX(-50%);bottom:16px;z-index:10000;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+    .pwa-toast{min-width:260px;max-width:90vw;background:#111;color:#fff;padding:10px 14px;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.25);font:14px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Arial;pointer-events:auto}
+    .pwa-toast.success{background:#115e24}
+    .pwa-toast.warn{background:#8a1d1d}
+    .pwa-toast.info{background:#0b57d0}
+    .pwa-toast .title{font-weight:600;margin-bottom:2px}
+
+    /* Banners */
+    .pwa-install-banner{position:fixed;left:0;right:0;bottom:0;z-index:9999;background:#111;color:#fff;padding:12px 14px;display:none;box-shadow:0 -6px 20px rgba(0,0,0,.25);font:14px/1.3 system-ui,-apple-system,Segoe UI,Roboto,Arial}
+    .pwa-install-banner .row{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+    .pwa-install-banner .title{font-weight:600}
+    .pwa-install-banner button{border:0;border-radius:10px;padding:10px 14px;cursor:pointer}
+    .pwa-install-banner .install{background:#0b57d0;color:#fff}
+    .pwa-install-banner .close{background:#333;color:#ddd}
+    .pwa-install-banner .hint{font-size:13px;opacity:.9;margin-top:2px}
+
+    .pwa-sync-banner{position:fixed;left:0;right:0;bottom:0;z-index:9998;background:#8a1d1d;color:#fff;padding:12px 14px;display:none;box-shadow:0 -6px 20px rgba(0,0,0,.25);font:14px/1.3 system-ui,-apple-system,Segoe UI,Roboto,Arial}
+    .pwa-sync-banner .row{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+    .pwa-sync-banner .title{font-weight:600}
+    .pwa-sync-banner button{border:0;border-radius:10px;padding:10px 14px;cursor:pointer}
+    .pwa-sync-banner .action{background:#fff;color:#8a1d1d}
+    .pwa-sync-banner .close{background:transparent;color:#ffdede;border:1px solid #ffdede}
   </style>
 </head>
 <body>
@@ -307,25 +260,52 @@
     </div>
   </div>
 
+  <!-- Toast container -->
+  <div id="pwaToasts" class="pwa-toasts" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Install banner -->
+  <div id="pwaBanner" class="pwa-install-banner" role="region" aria-label="Instalar aplicativo">
+    <div class="row">
+      <div>
+        <div class="title">Instale “Crachá Digital - IISNHCM”</div>
+        <div id="pwaHint" class="hint"></div>
+      </div>
+      <div>
+        <button id="pwaInstallBtn" class="install" style="display:none">Instalar app</button>
+        <button id="pwaCloseBtn" class="close" aria-label="Fechar">Agora não</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sync banner -->
+  <div id="syncBanner" class="pwa-sync-banner" role="region" aria-label="Sincronização necessária">
+    <div class="row">
+      <div>
+        <div class="title">Sincronização necessária</div>
+        <div id="syncBannerMsg">Conecte-se à internet uma vez para salvar seus dados e usar o app offline.</div>
+      </div>
+      <div>
+        <button id="syncNowBtn" class="action">Sincronizar agora</button>
+        <button id="syncCloseBtn" class="close" aria-label="Fechar">Fechar</button>
+      </div>
+    </div>
+  </div>
+
   <audio id="bip" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
 
   <script>
     /* ========= CONFIG ========= */
     const ENDPOINT = "https://script.google.com/macros/s/AKfycbwHk6o909wUncUcY0g0nRgJSpiZ-ZI7MtZjxMRCTrVU2yh9zm_M9uULA6SBYnTcuL0mEw/exec";
-    const CARD_WIDTH=638, CARD_HEIGHT=1011, QR_SIZE=170; // ou 120, 150, etc.
+    const CARD_WIDTH=638, CARD_HEIGHT=1011, QR_SIZE=170;
     const px2mm = p => p * 0.264583;
 
-    // Detecta 3D de forma segura
-    const supports3D =
-      (typeof CSS !== 'undefined' && typeof CSS.supports === 'function' &&
-       CSS.supports('transform-style','preserve-3d')) ? true : false;
+    const supports3D = (typeof CSS !== 'undefined' && typeof CSS.supports === 'function' && CSS.supports('transform-style','preserve-3d')) ? true : false;
     if (!supports3D) { document.body.classList.add('no-3d'); }
 
-    /* ========= Frente ========= */
     const BG_BASE64=""; // opcional base64
-    const LOGO_MAIN_BASE64   = "imagem da logo será reinserida depois"; // Logo grande (topo)
-    const LOGO_FOOTER1_BASE64= "imagem será reinserida depois"; // Logo rodapé (esquerda)
-    const LOGO_FOOTER2_BASE64= "imagem será reinserida depois"; // Logo rodapé (direita)
+    const LOGO_MAIN_BASE64   = ""; // insira quando quiser
+    const LOGO_FOOTER1_BASE64= "";
+    const LOGO_FOOTER2_BASE64= "";
 
     function sanitizeForBarcode(s){return (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]/g,'');}
     function getInitials(n){return n? n.trim().split(' ').filter(Boolean).map(p=>p[0].toUpperCase()).join(''):'';}
@@ -348,7 +328,6 @@
       const protocol=makeProtocol(currentData.code||'', currentData.name||'Nome');
       const protocolEl = document.getElementById('protocolText');
       if (protocolEl) protocolEl.textContent = protocol;
-
       if(window.JsBarcode){
         const svg=document.getElementById('barcode');
         if(svg){
@@ -380,61 +359,48 @@
     }
     function triggerDownload(u,f){ const a=document.createElement('a'); a.href=u; a.download=f; document.body.appendChild(a); a.click(); a.remove(); }
 
+    async function prefillFromCacheThenURL(){
+      // 1) Tenta dados do perfil offline (se existir)
+      try{
+        if (typeof window.loadUserProfile === 'function') {
+          const prof = await window.loadUserProfile();
+          if (prof && prof.fullName && prof.memberId) {
+            setBadgeData(prof.fullName, prof.memberId, prof.photoUrl);
+          }
+        }
+      }catch{}
+      // 2) Aplica querystring (se houver)
+      const p   = new URLSearchParams(location.search);
+      const name  = p.get('name') || p.get('nome') || '';
+      const code  = p.get('code') || p.get('memberid') || p.get('memberId') || p.get('matricula') || '';
+      const photo = p.get('photo') || p.get('foto') || p.get('image') || '';
+      if (name || code || photo) setBadgeData(name, code, photo);
+    }
+
     function bootstrap(){
       if(BG_BASE64.startsWith('data:')) document.getElementById('bg').style.backgroundImage=`url('${BG_BASE64}')`;
       if(LOGO_MAIN_BASE64)   document.getElementById('logoMain').src=LOGO_MAIN_BASE64;
       if(LOGO_FOOTER1_BASE64)document.getElementById('foot1').src=LOGO_FOOTER1_BASE64;
       if(LOGO_FOOTER2_BASE64)document.getElementById('foot2').src=LOGO_FOOTER2_BASE64;
       renderAll();
-      fitPreviewToContainer();       // <- ajuste inicial
+      fitPreviewToContainer();
+      prefillFromCacheThenURL();
     }
     document.addEventListener('DOMContentLoaded',bootstrap);
 
-    /* ========= Prefill por URL =========
-       Aceita:
-       ?name=...&code=...&photo=...
-       ?name=...&memberid=...&photo=...
-       ?name=...&memberId=...&photo=...
-    */
-    (function(){
-      const p   = new URLSearchParams(location.search);
-      const name  = p.get('name') || '';
-      const code  = p.get('code') || p.get('memberid') || p.get('memberId') || '';
-      const photo = p.get('photo') || '';
-      setBadgeData(name, code, photo);
-    })();
-
-    /* ========= Responsividade: ajusta --preview-scale conforme o espaço ========= */
     function fitPreviewToContainer(){
-      const wrap = document.getElementById('previewWrap');
-      if(!wrap) return;
-
-      // Largura disponível = largura real do pai da .preview-wrap
-      const parent = wrap.parentElement;
-      const available = parent ? parent.clientWidth : window.innerWidth;
-
-      const cardW = parseFloat(getComputedStyle(wrap).getPropertyValue('--card-w')); // px
-      const cardH = parseFloat(getComputedStyle(wrap).getPropertyValue('--card-h')); // px
-
-      // Margem de segurança para não encostar (em px)
+      const wrap = document.getElementById('previewWrap'); if(!wrap) return;
+      const parent = wrap.parentElement; const available = parent ? parent.clientWidth : window.innerWidth;
+      const cardW = parseFloat(getComputedStyle(wrap).getPropertyValue('--card-w'));
+      const cardH = parseFloat(getComputedStyle(wrap).getPropertyValue('--card-h'));
       const gutter = 8;
-
-      // Escala máxima para caber na largura e também não extrapolar a altura do viewport em 90%
       const scaleByW = (available - gutter*2) / cardW;
       const scaleByH = (window.innerHeight * 0.9 - gutter*2) / cardH;
-
-      // Mantém no máximo 1:1 (100%) para não estourar nos desktops
       const scale = Math.max(0.2, Math.min(1, isFinite(scaleByW) ? Math.min(scaleByW, scaleByH) : 1));
-
-      // Aplica no :root (ou diretamente no elemento, se preferir)
       document.documentElement.style.setProperty('--preview-scale', String(scale));
-
-      // Atualiza as dimensões visuais do wrapper
       wrap.style.width  = `calc(var(--card-w) * var(--preview-scale))`;
       wrap.style.height = `calc(var(--card-h) * var(--preview-scale))`;
     }
-
-    // Recalcula em resize/orientationchange
     window.addEventListener('resize', fitPreviewToContainer);
     window.addEventListener('orientationchange', fitPreviewToContainer);
 
@@ -458,7 +424,6 @@
       card3d.classList.add('is-back');
       if(!supports3D){ document.body.classList.add('back-visible'); }
       flipToFront.style.display='inline-block';
-      // Em telas pequenas, recalcular (altura útil muda com teclado/câmera)
       setTimeout(fitPreviewToContainer, 50);
     }
     function showFront(){
@@ -474,7 +439,6 @@
     });
     flipToFront.addEventListener('click', ()=>{ showFront(); stopQR(); });
 
-    // trava o campo "evento"
     ['keydown','keypress','keyup','paste','drop','input','focus'].forEach(evt=>{
       eventoInput.addEventListener(evt,e=>{
         if(evt!=='focus') e.preventDefault();
@@ -494,7 +458,7 @@
       try{
         const data=JSON.parse(decodedText);
         if(data && data.nome && data.codigo){
-          eventoInput.value=`${data.nome} - ${data.codigo}`; eventoValido=true; bip.play();
+          eventoInput.value=`${data.nome} - ${data.codigo}`; eventoValido=true; try{bip.play();}catch{}
           mostrarMensagem("Evento lido com sucesso!", false);
         }else{ mostrarMensagem('QR inválido. Esperado {"nome":"...","codigo":"..."}', true); }
       }catch(e){ mostrarMensagem("Leitura inválida do QR.", true); }
@@ -517,706 +481,457 @@
         }
       } catch (e) {}
     }
-form.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  if (!eventoValido || !eventoInput.value.trim()) { mostrarMensagem("Leia o QR do evento para prosseguir.", true); return; }
 
-  const registro = {
-    nome:   (nomeInput.value||"").trim(),
-    codigo: (codigoInput.value||"").trim(),
-    evento: (eventoInput.value||"").trim(),
-    horario: new Date().toLocaleString("pt-BR")
-  };
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!eventoValido || !eventoInput.value.trim()) { mostrarMensagem("Leia o QR do evento para prosseguir.", true); return; }
 
-  try {
-    const res = await window.registerPresence(registro);
-    // Atualiza a barra de status + mensagem
-    if (res.ok) {
-      mostrarMensagem("Presença registrada com sucesso!", false);
-      try { bip && bip.play(); } catch {}
-    } else {
-      mostrarMensagem("Sem conexão estável. Registro salvo e será enviado automaticamente.", true);
-    }
-  } catch (err) {
-    mostrarMensagem("Não foi possível registrar agora. Salvamos e tentaremos novamente.", true);
-  }
+      const registro = {
+        nome:   (nomeInput.value||"").trim(),
+        codigo: (codigoInput.value||"").trim(),
+        evento: (eventoInput.value||"").trim(),
+        horario: new Date().toLocaleString("pt-BR")
+      };
 
-  eventoInput.value = "";
-  eventoValido = false;
-});
+      try {
+        const res = await window.registerPresence(registro);
+        if (res && res.ok) {
+          mostrarMensagem("Presença registrada com sucesso!", false);
+          try { bip && bip.play(); } catch {}
+        } else {
+          mostrarMensagem("Sem conexão estável. Registro salvo e será enviado automaticamente.", true);
+        }
+      } catch (err) {
+        console.warn('[PWA] Falha no envio imediato, enfileirando:', err);
+        mostrarMensagem("Não foi possível registrar agora. Salvamos e tentaremos novamente.", true);
+      }
+
+      eventoInput.value = "";
+      eventoValido = false;
+    });
+
     function exibirNaTabela(r){
       const tr=document.createElement('tr'); tr.innerHTML=`<td>${r.horario}</td><td>${r.nome}</td><td>${r.codigo}</td><td>${r.evento}</td>`;
       registrosTabela.prepend(tr);
     }
     function mostrarMensagem(t,err){ msg.textContent=t; msg.classList.toggle('error',!!err); }
-
-    async function resetAppData() {
-  try { await stopQR(); } catch {}
-
-  try { localStorage.removeItem('filaRegistros'); } catch {}
-
-  // Limpar apenas o cache do PWA
-  const CACHE_NAME = 'cracha-presenca';
-  try {
-    if (window.caches && caches.keys) {
-      const keys = await caches.keys();
-      await Promise.all(keys.map(k => (k === CACHE_NAME ? caches.delete(k) : null)));
-    }
-  } catch {}
-
-  // Desregistrar apenas o service worker do PWA
-  try {
-    if ('serviceWorker' in navigator) {
-      const regs = await navigator.serviceWorker.getRegistrations();
-      for (const reg of regs) {
-        if (reg.scope.includes(location.origin)) {
-          try { await reg.unregister(); } catch {}
-        }
-      }
-    }
-  } catch {}
-
-  // Remover IndexedDB usado pelo app (se você tiver um nome específico, substitua aqui)
-  try {
-    if (window.indexedDB && typeof indexedDB.databases === 'function') {
-      const dbs = await indexedDB.databases();
-      await Promise.all((dbs || []).map(db => {
-        if (!db || !db.name) return Promise.resolve();
-        if (db.name.startsWith('cracha-')) { // apenas DBs do app
-          return new Promise(resolve => {
-            const req = indexedDB.deleteDatabase(db.name);
-            req.onsuccess = req.onerror = req.onblocked = () => resolve();
-          });
-        }
-        return Promise.resolve();
-      }));
-    }
-  } catch {}
-
-  // Recarrega e força o SW registrar novamente
-  location.reload();
-}
-
-    // tenta sincronizar ao abrir
-    flushPresenceQueue().catch(()=>{});
   </script>
 
-<style>
-  .pwa-install-banner{position:fixed;left:0;right:0;bottom:0;z-index:9999;background:#111;color:#fff;padding:12px 14px;display:none;box-shadow:0 -6px 20px rgba(0,0,0,.25);font:14px/1.3 system-ui,-apple-system,Segoe UI,Roboto,Arial}
-  .pwa-install-banner .row{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
-  .pwa-install-banner .title{font-weight:600}
-  .pwa-install-banner button{border:0;border-radius:10px;padding:10px 14px;cursor:pointer}
-  .pwa-install-banner .install{background:#0b57d0;color:#fff}
-  .pwa-install-banner .close{background:#333;color:#ddd}
-  .pwa-install-banner .hint{font-size:13px;opacity:.9;margin-top:2px}
-</style>
-
-<div id="pwaBanner" class="pwa-install-banner" role="region" aria-label="Instalar aplicativo">
-  <div class="row">
-    <div>
-      <div class="title">Instale “Crachá Digital - IISNHCM”</div>
-      <div id="pwaHint" class="hint"></div>
-    </div>
-    <div>
-      <button id="pwaInstallBtn" class="install" style="display:none">Instalar app</button>
-      <button id="pwaCloseBtn" class="close" aria-label="Fechar">Agora não</button>
-    </div>
-  </div>
-</div>
-
-<script>
-(function(){
-  const banner = document.getElementById('pwaBanner');
-  const installBtn = document.getElementById('pwaInstallBtn');
-  const closeBtn = document.getElementById('pwaCloseBtn');
-  const hint = document.getElementById('pwaHint');
-
-  const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
-  const UA = navigator.userAgent.toLowerCase();
-  const isIOS = /iphone|ipad|ipod/.test(UA);
-  const isAndroid = /android/.test(UA);
-  const isSafari = /^((?!chrome|crios|fxios|edgios|android).)*safari/.test(navigator.userAgent);
-  const isChrome = /chrome|crios/.test(navigator.userAgent) && !/edg/i.test(navigator.userAgent);
-  const isEdge = /edg\//i.test(navigator.userAgent);
-
-  let deferredPrompt;
-
-  function showBanner() {
-    if (isStandalone()) return; // já “instalado”
-    banner.style.display = 'block';
-  }
-
-  function setHintTextForPlatform() {
-    if (isIOS && isSafari) {
-      hint.innerHTML = 'iPhone/iPad: toque em <strong>Compartilhar</strong> (quadrado com seta) → <strong>Adicionar à Tela de Início</strong>.';
-      return;
-    }
-    if (!isIOS && isSafari) {
-      hint.innerHTML = 'Safari (macOS): Abra <strong>Arquivo → Adicionar à Dock</strong> (ou compartilhe → <strong>Adicionar à Dock</strong> no Sonoma+)';
-      return;
-    }
-    if (isAndroid && isChrome) {
-      hint.innerHTML = 'Android/Chrome: se o botão não aparecer, use o menu ⋮ → <strong>Instalar app</strong>.';
-      return;
-    }
-    if (isAndroid && isEdge) {
-      hint.innerHTML = 'Android/Microsoft Edge: menu ⋮ → <strong>Instalar este site como app</strong>.';
-      return;
-    }
-    hint.textContent = 'Dica: procure a opção de instalar/adicionar à tela inicial no menu do navegador.';
-  }
-
-  // Android/Chrome/Edge: capturar o evento oficial
-  window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    deferredPrompt = e;
-    setHintTextForPlatform();
-    installBtn.style.display = 'inline-block';
-    showBanner();
-  });
-
-  // Fallbacks: iOS/Safari e outros
-  window.addEventListener('load', () => {
-    if (isStandalone()) return;
-    // Se não veio o beforeinstallprompt em ~2s, mostramos instruções por plataforma
-    setTimeout(() => {
-      if (!deferredPrompt) {
-        setHintTextForPlatform();
-        installBtn.style.display = 'none';
-        showBanner();
-      }
-    }, 2000);
-  });
-
-  installBtn?.addEventListener('click', async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    await deferredPrompt.userChoice;
-    deferredPrompt = null;
-    banner.style.display = 'none';
-  });
-
-  closeBtn?.addEventListener('click', () => banner.style.display = 'none');
-
-  // Garantir registro do SW se não houver em outro lugar
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.getRegistration().then(reg => {
-        if (!reg) navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(()=>{});
-      });
-    });
-  }
-})();
-</script>
-
-<script>
-(function(){
-  // Seletor do crachá — AJUSTAR para o elemento correto:
-  const crachaEl = document.querySelector('#cracha, #cardFront, .card'); // tente por id; mantenha alternativas
-
-  // Fallback de limpeza caso resetAppData não exista
-  async function fallbackReset() {
-    try { localStorage && localStorage.clear && localStorage.clear(); } catch {}
-    try {
-      if (window.caches && caches.keys) {
-        const keys = await caches.keys();
-        await Promise.all(keys.map(k => caches.delete(k)));
-      }
-    } catch {}
-    try {
-      if ('serviceWorker' in navigator) {
-        const regs = await navigator.serviceWorker.getRegistrations();
-        await Promise.all(regs.map(r => r.unregister().catch(()=>{})));
-      }
-    } catch {}
-    try {
-      if (window.indexedDB && typeof indexedDB.databases === 'function') {
-        const dbs = await indexedDB.databases();
-        await Promise.all((dbs || []).map(db => {
-          if (!db || !db.name) return Promise.resolve();
-          return new Promise(res => {
-            const req = indexedDB.deleteDatabase(db.name);
-            req.onsuccess = req.onerror = req.onblocked = () => res();
-          });
-        }));
-      }
-    } catch {}
-    // reload para pegar SW novo/estado limpo
-    location.reload();
-  }
-
-  // Triple-click detector (3 cliques em 1200ms)
-  if (crachaEl) {
-    let clicks = 0, firstTs = 0, TIMER = null, WINDOW_MS = 1200;
-
-    crachaEl.addEventListener('click', async () => {
-      const now = Date.now();
-      if (!firstTs || now - firstTs > WINDOW_MS) {
-        firstTs = now; clicks = 1;
-      } else {
-        clicks++;
-      }
-
-      clearTimeout(TIMER);
-      TIMER = setTimeout(() => { clicks = 0; firstTs = 0; }, WINDOW_MS);
-
-      if (clicks >= 3) {
-        clicks = 0; firstTs = 0; clearTimeout(TIMER);
-        const ok = confirm('Deseja limpar dados do aplicativo? (cache, SW, IndexedDB)');
-        if (!ok) return;
-        if (typeof window.resetAppData === 'function') {
-          try { await window.resetAppData(); } catch {}
-        } else {
-          await fallbackReset();
+  <script>
+  // ----- Hidden reset (triple-click) -----
+  (function(){
+    const crachaEl = document.querySelector('#cracha, #cardFront, .card');
+    async function fallbackReset() {
+      try { localStorage && localStorage.clear && localStorage.clear(); } catch {}
+      try { if (window.caches && caches.keys) { const keys = await caches.keys(); await Promise.all(keys.map(k => caches.delete(k))); } } catch {}
+      try { if ('serviceWorker' in navigator) { const regs = await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map(r => r.unregister().catch(()=>{}))); } } catch {}
+      try {
+        if (window.indexedDB && typeof indexedDB.databases === 'function') {
+          const dbs = await indexedDB.databases();
+          await Promise.all((dbs || []).map(db => {
+            if (!db || !db.name) return Promise.resolve();
+            return new Promise(res => { const req = indexedDB.deleteDatabase(db.name); req.onsuccess = req.onerror = req.onblocked = () => res(); });
+          }));
         }
-      }
-    });
-  }
-})();
-</script>
-<script>
-/**
- * Salva a querystring e o path quando acessar online (antes de instalar),
- * e restaura na primeira abertura em modo app (standalone).
- */
-(function(){
-  const isStandalone = () =>
-    window.matchMedia && window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
-
-  // Salvar contexto quando há parâmetros e não está em standalone
-  try {
-    if (location.search && !isStandalone()) {
-      const ctx = { search: location.search, path: location.pathname || '/', ts: Date.now() };
-      localStorage.setItem('pwa:lastCtx', JSON.stringify(ctx));
+      } catch {}
+      location.reload();
     }
-  } catch {}
+    if (crachaEl) {
+      let clicks = 0, firstTs = 0, TIMER = null, WINDOW_MS = 1200;
+      crachaEl.addEventListener('click', async () => {
+        const now = Date.now();
+        if (!firstTs || now - firstTs > WINDOW_MS) { firstTs = now; clicks = 1; } else { clicks++; }
+        clearTimeout(TIMER); TIMER = setTimeout(() => { clicks = 0; firstTs = 0; }, WINDOW_MS);
+        if (clicks >= 3) {
+          clicks = 0; firstTs = 0; clearTimeout(TIMER);
+          const ok = confirm('Deseja limpar dados do aplicativo? (cache, SW, IndexedDB)');
+          if (!ok) return;
+          if (typeof window.resetAppData === 'function') { try { await window.resetAppData(); } catch {} }
+          else { await fallbackReset(); }
+        }
+      });
+    }
+  })();
+  </script>
 
-  // Restaurar uma única vez no primeiro launch em app
-  try {
-    const RESTORE_FLAG = 'pwa:restored';
-    if (isStandalone() && !sessionStorage.getItem(RESTORE_FLAG)) {
-      const raw = localStorage.getItem('pwa:lastCtx');
-      if (raw) {
-        const { search, path, ts } = JSON.parse(raw) || {};
-        const ONE_WEEK = 7*24*60*60*1000;
-        const fresh = !ts || (Date.now() - ts) < ONE_WEEK;
-        if (fresh && search && path) {
-          const target = path + search;
-          const current = location.pathname + location.search;
-          if (current !== target) {
-            sessionStorage.setItem(RESTORE_FLAG, '1');
-            location.replace(target);
+  <script>
+  // ----- Save & restore launch context (URL/path) -----
+  (function(){
+    const isStandalone = () =>
+      (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone;
+    try {
+      if (location.search && !isStandalone()) {
+        const ctx = { search: location.search, path: location.pathname || '/', ts: Date.now() };
+        localStorage.setItem('pwa:lastCtx', JSON.stringify(ctx));
+      }
+    } catch {}
+    try {
+      const RESTORE_FLAG = 'pwa:restored';
+      if (isStandalone() && !sessionStorage.getItem(RESTORE_FLAG)) {
+        const raw = localStorage.getItem('pwa:lastCtx');
+        if (raw) {
+          const { search, path, ts } = JSON.parse(raw) || {};
+          const ONE_WEEK = 7*24*60*60*1000;
+          const fresh = !ts || (Date.now() - ts) < ONE_WEEK;
+          if (fresh && search && path) {
+            const target = path + search;
+            const current = location.pathname + location.search;
+            if (current !== target) {
+              sessionStorage.setItem(RESTORE_FLAG, '1');
+              location.replace(target);
+            }
           }
         }
       }
-    }
-  } catch {}
-})();
-</script>
-<script>
-/**
- * API global:
- *   window.cacheUserProfile({ fullName, memberId, photoUrl })
- *   window.loadUserProfile() -> Promise<{ fullName, memberId, photoUrl, ts }>
- *   window.getLaunchParams() -> URLSearchParams (pega params ou restaura do contexto salvo)
- *
- * Chame cacheUserProfile assim que tiver os dados (ex.: após login/busca).
- */
-(function(){
-  const CACHE_NAME = 'cracha-user-v1';
-  const PROFILE_JSON_PATH = '/offline/profile.json';
-  const PROFILE_IMG_PATH  = '/offline/profile-photo.jpg';
-
-  async function cacheUserProfile({ fullName, memberId, photoUrl }) {
-    if (!fullName || !memberId || !photoUrl) {
-      console.warn('[PWA] cacheUserProfile: dados faltando'); return;
-    }
-    // Monta JSON
-    const profile = { fullName, memberId, photoLocal: PROFILE_IMG_PATH, ts: Date.now() };
-    const profileRes = new Response(JSON.stringify(profile), { headers: { 'Content-Type': 'application/json' } });
-
-    // Baixa foto
-    const resp = await fetch(photoUrl, { credentials: 'include' });
-    if (!resp.ok) throw new Error('Falha ao baixar foto');
-    const photoBlob = await resp.blob();
-    const photoRes = new Response(photoBlob, { headers: { 'Content-Type': photoBlob.type || 'image/jpeg' } });
-
-    // Grava no cache
-    const cache = await caches.open(CACHE_NAME);
-    await Promise.all([
-      cache.put(PROFILE_JSON_PATH, profileRes),
-      cache.put(PROFILE_IMG_PATH,  photoRes),
-    ]);
-    localStorage.setItem('pwa:profileCached', '1');
-    console.log('[PWA] Perfil salvo para uso offline');
-  }
-
-  async function loadUserProfile() {
-    try {
-      const cache = await caches.open(CACHE_NAME);
-      const res = await cache.match(PROFILE_JSON_PATH);
-      if (!res) return null;
-      const profile = await res.json();
-      return { ...profile, photoUrl: profile.photoLocal || PROFILE_IMG_PATH };
-    } catch { return null; }
-  }
-
-  function getLaunchParams(){
-    const params = new URLSearchParams(location.search);
-    if ([...params].length) return params;
-    try {
-      const raw = localStorage.getItem('pwa:lastCtx');
-      if (!raw) return params;
-      const { search } = JSON.parse(raw) || {};
-      return search ? new URLSearchParams(search) : params;
-    } catch { return params; }
-  }
-
-  // Expõe no escopo global
-  window.cacheUserProfile = cacheUserProfile;
-  window.loadUserProfile  = loadUserProfile;
-  window.getLaunchParams  = getLaunchParams;
-})();
-</script>
-<style>
-  .pwa-sync-banner{position:fixed;left:0;right:0;bottom:0;z-index:9999;background:#8a1d1d;color:#fff;padding:12px 14px;display:none;box-shadow:0 -6px 20px rgba(0,0,0,.25);font:14px/1.3 system-ui,-apple-system,Segoe UI,Roboto,Arial}
-  .pwa-sync-banner .row{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
-  .pwa-sync-banner .title{font-weight:600}
-  .pwa-sync-banner button{border:0;border-radius:10px;padding:10px 14px;cursor:pointer}
-  .pwa-sync-banner .action{background:#fff;color:#8a1d1d}
-  .pwa-sync-banner .close{background:transparent;color:#ffdede;border:1px solid #ffdede}
-</style>
-<div id="syncBanner" class="pwa-sync-banner" role="region" aria-label="Sincronização necessária">
-  <div class="row">
-    <div>
-      <div class="title">Sincronização necessária</div>
-      <div id="syncBannerMsg">Conecte-se à internet uma vez para salvar seus dados e usar o app offline.</div>
-    </div>
-    <div>
-      <button id="syncNowBtn" class="action">Sincronizar agora</button>
-      <button id="syncCloseBtn" class="close" aria-label="Fechar">Fechar</button>
-    </div>
-  </div>
-</div>
-<script>
-(function(){
-  const CACHE_NAME = 'cracha-user-v1';
-  const PROFILE_JSON_PATH = '/offline/profile.json';
-  const PROFILE_IMG_PATH  = '/offline/profile-photo.jpg';
-
-  const isStandalone = () =>
-    (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone;
-
-  const getParams = () => {
-    if (typeof window.getLaunchParams === 'function') return window.getLaunchParams();
-    return new URLSearchParams(location.search);
-  };
-
-  function base64PuroParaDataURL(b64, mime='image/jpeg'){
-    const clean = (b64||'').replace(/\s+/g,'');
-    return `data:${mime};base64,${clean}`;
-  }
-
-  function ehDataURL(s){ return /^data:image\/[a-zA-Z0-9.+-]+;base64,/.test(s||''); }
-  function pareceBase64(s){ return !!s && /^[A-Za-z0-9+\/=\s]+$/.test(s) && s.replace(/\s+/g,'').length > 100; }
-
-  function blobFromDataURL(dataURL){
-    const arr = dataURL.split(',');
-    const mime = arr[0].match(/data:(.*?);base64/)[1] || 'application/octet-stream';
-    const bstr = atob(arr[1]);
-    let n = bstr.length; const u8 = new Uint8Array(n);
-    while(n--) u8[n] = bstr.charCodeAt(n);
-    return new Blob([u8], { type: mime });
-  }
-
-  async function urlToDataURL(url){
-    const res = await fetch(url, { credentials: 'include' });
-    if (!res.ok) throw new Error('fetch-failed');
-    const blob = await res.blob();
-    return await new Promise((resolve, reject) => {
-      const fr = new FileReader();
-      fr.onload = () => resolve(fr.result);
-      fr.onerror = reject;
-      fr.readAsDataURL(blob);
-    });
-  }
-
-  async function putInCache(path, response){
-    const cache = await caches.open(CACHE_NAME);
-    await cache.put(path, response);
-  }
-
-  async function cacheUserProfileSmart({ fullName, memberId, photo }) {
-    if (!fullName || !memberId) throw new Error('missing-name-or-id');
-
-    let dataURL = null;
-    let reason  = null;
-
-    try {
-      if (ehDataURL(photo)) {
-        dataURL = photo;
-      } else if (pareceBase64(photo)) {
-        dataURL = base64PuroParaDataURL(photo, 'image/jpeg');
-      } else if (photo) {
-        dataURL = await urlToDataURL(photo);
-      }
-    } catch (e) {
-      reason = e && e.message || 'photo-convert-failed';
-    }
-
-    const profile = {
-      fullName, memberId,
-      photoLocal: PROFILE_IMG_PATH,
-      ts: Date.now(),
-      needsPhotoSync: !dataURL
-    };
-    await putInCache(PROFILE_JSON_PATH, new Response(JSON.stringify(profile), { headers: { 'Content-Type': 'application/json' }}));
-
-    if (dataURL) {
-      const blob = blobFromDataURL(dataURL);
-      await putInCache(PROFILE_IMG_PATH, new Response(blob, { headers: { 'Content-Type': blob.type || 'image/jpeg' }}));
-      localStorage.setItem('pwa:profileCached', '1');
-      localStorage.removeItem('pwa:needsPhotoSync');
-    } else {
-      localStorage.setItem('pwa:needsPhotoSync', reason || 'unknown');
-    }
-    console.log('[PWA] Perfil salvo (foto:', dataURL ? 'ok' : 'pendente', ')');
-  }
-  window.cacheUserProfileSmart = cacheUserProfileSmart;
-
-  async function ensureProfileFromURL({ cleanQuery=true } = {}) {
-    try {
-      const params = getParams();
-      const fullName = params.get('name') || params.get('fullname') || params.get('nome');
-      const memberId = params.get('memberId') || params.get('id') || params.get('matricula');
-      let photo = params.get('photo') || params.get('foto') || params.get('image');
-
-      if (!fullName || !memberId) return false;
-
-      if (typeof window.loadUserProfile === 'function') {
-        try {
-          const cached = await window.loadUserProfile();
-          if (cached && String(cached.memberId) === String(memberId) && !cached.needsPhotoSync) return true;
-        } catch {}
-      }
-
-      if (photo && !ehDataURL(photo) && pareceBase64(photo)) {
-        photo = base64PuroParaDataURL(photo, 'image/jpeg');
-      }
-
-      await cacheUserProfileSmart({ fullName, memberId, photo });
-
-      if (cleanQuery && (location.search || '').length > 1 && history.replaceState) {
-        history.replaceState(null, '', location.pathname);
-      }
-      return true;
-    } catch (e) {
-      console.warn('[PWA] ensureProfileFromURL falhou:', e);
-      return false;
-    }
-  }
-  window.ensureProfileFromURL = ensureProfileFromURL;
-})();
-</script>
-<script>
-(function(){
-  const $ = (sel) => document.querySelector(sel);
-  const banner = $('#syncBanner');
-  const btnNow = $('#syncNowBtn');
-  const btnClose = $('#syncCloseBtn');
-  const msg = $('#syncBannerMsg');
-
-  const isStandalone = () =>
-    (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone;
-
-  function showSyncBanner(text){
-    if (!banner) return;
-    if (text) msg && (msg.textContent = text);
-    banner.style.display = 'block';
-  }
-  function hideSyncBanner(){
-    if (!banner) return;
-    banner.style.display = 'none';
-  }
-
-  async function hasOfflineProfile(){
-    try {
-      const cache = await caches.open('cracha-user-v1');
-      const res = await cache.match('/offline/profile.json');
-      return !!res;
-    } catch { return false; }
-  }
-
-  async function maybeShowOnLoad(){
-    if (!isStandalone()) return;
-    const noProfile = !(await hasOfflineProfile());
-    const needPhoto = !!localStorage.getItem('pwa:needsPhotoSync');
-    if (noProfile || needPhoto) {
-      showSyncBanner( noProfile
-        ? 'Conecte-se uma vez para salvar seus dados e usar offline.'
-        : 'Conecte-se para baixar a sua foto e finalizar a sincronização.' );
-    }
-  }
-
-  async function trySyncNow(){
-    if (typeof window.ensureProfileFromURL !== 'function') return;
-    const ok = await window.ensureProfileFromURL({ cleanQuery:false });
-    if (ok) {
-      localStorage.removeItem('pwa:needsPhotoSync');
-      hideSyncBanner();
-      console.log('[PWA] Sincronização concluída.');
-    } else {
-      showSyncBanner('Ainda não foi possível sincronizar. Verifique sua conexão.');
-    }
-  }
-
-  btnNow && btnNow.addEventListener('click', trySyncNow);
-  btnClose && btnClose.addEventListener('click', hideSyncBanner);
-
-  window.addEventListener('online', () => {
-    trySyncNow();
-  });
-
-  window.addEventListener('load', () => {
-    if (navigator.onLine) {
-      trySyncNow().then(ok => { if (!ok) maybeShowOnLoad(); });
-    } else {
-      maybeShowOnLoad();
-    }
-  });
-})();
-</script>
-
-<style>
-  .pwa-toasts{position:fixed;left:50%;transform:translateX(-50%);bottom:16px;z-index:10000;display:flex;flex-direction:column;gap:8px;pointer-events:none}
-  .pwa-toast{min-width:260px;max-width:90vw;background:#111;color:#fff;padding:10px 14px;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.25);font:14px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Arial;pointer-events:auto}
-  .pwa-toast.success{background:#115e24}
-  .pwa-toast.warn{background:#8a1d1d}
-  .pwa-toast.info{background:#0b57d0}
-  .pwa-toast .title{font-weight:600;margin-bottom:2px}
-</style>
-<div id="pwaToasts" class="pwa-toasts" aria-live="polite" aria-atomic="true"></div>
-<script>
-(function(){
-  function showToast({title, text, kind='info', ms=3500}){
-    const wrap=document.getElementById('pwaToasts'); if(!wrap) return;
-    const el=document.createElement('div'); el.className='pwa-toast '+kind;
-    el.innerHTML=(title?'<div class="title">'+title+'</div>':'')+(text||'');
-    wrap.appendChild(el);
-    setTimeout(()=>{ el.style.opacity='0'; el.style.transition='opacity .2s'; }, Math.max(0,ms-180));
-    setTimeout(()=>{ el.remove(); }, ms);
-  }
-  window.PWA_TOAST={ show:showToast };
-})();
-</script>
-
-<script>
-/**
- * Registro de presença com IndexedDB (fila offline) + retry automático.
- * - Mantém o formato application/x-www-form-urlencoded (compatível com Apps Script original).
- * - Usa a constante ENDPOINT se existir no escopo da página; senão, window.PRESENCE_ENDPOINT.
- * API:
- *   await registerPresence({ nome, codigo, evento, horario })
- *   flushPresenceQueue()
- */
-(function(){
-  const ENDPOINT = (typeof window.ENDPOINT === 'string' && window.ENDPOINT) || window.PRESENCE_ENDPOINT || '/api/presence';
-  const DB_NAME = 'cracha-db';
-  const STORE   = 'presenceQueue';
-
-  // ===== IndexedDB helpers
-  function withDB(cb){
-    return new Promise((resolve,reject)=>{
-      const open=indexedDB.open(DB_NAME, 3);
-      open.onupgradeneeded=()=>{ const db=open.result; if(!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE,{keyPath:'id',autoIncrement:true}); };
-      open.onsuccess=()=>cb(open.result).then(resolve,reject);
-      open.onerror =()=>reject(open.error);
-    });
-  }
-  function enqueue(payload){
-    return withDB(db=>new Promise((res,rej)=>{
-      const tx=db.transaction(STORE,'readwrite'); tx.objectStore(STORE).add({payload, createdAt:Date.now()});
-      tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error);
-    }));
-  }
-  function allQueue(){
-    return withDB(db=>new Promise((res,rej)=>{
-      const out=[]; const tx=db.transaction(STORE,'readonly'); const req=tx.objectStore(STORE).openCursor();
-      req.onsuccess=()=>{ const c=req.result; if(c){ out.push({id:c.key, ...c.value}); c.continue(); } else res(out); };
-      req.onerror=()=>rej(req.error);
-    }));
-  }
-  function removeId(id){
-    return withDB(db=>new Promise((res,rej)=>{
-      const tx=db.transaction(STORE,'readwrite'); tx.objectStore(STORE).delete(id);
-      tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error);
-    }));
-  }
-
-  // ===== POST form-urlencoded (igual ao código original)
-  async function postForm(url, data, { timeoutMs=10000 }={}){
-    const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(), timeoutMs);
-    try{
-      const fd=new URLSearchParams();
-      Object.keys(data||{}).forEach(k=>fd.append(k, data[k]));
-      const r=await fetch(url,{ method:'POST', body:fd, credentials:'include', signal:ctrl.signal });
-      if(!r.ok) throw new Error('http-'+r.status);
-      return await r.text().catch(()=> '');
-    } finally { clearTimeout(t); }
-  }
-
-  async function flushPresenceQueue(){
-    const q = await allQueue();
-    if(!q.length || !navigator.onLine) return;
-    for (const it of q){
-      try{
-        await postForm(ENDPOINT, it.payload);
-        await removeId(it.id);
-      }catch(e){ /* mantém na fila */ }
-    }
-  }
-
-  async function registerPresence(payload){
-    // payload esperado: { nome, codigo, evento, horario }
-    const enriched = { ...payload, ua:navigator.userAgent, ts:Date.now() };
-    if(navigator.onLine){
-      try{
-        await postForm(ENDPOINT, enriched);
-        window.PWA_TOAST && PWA_TOAST.show({ title:'Presença', text:'Registro enviado com sucesso.', kind:'success' });
-        // drena qualquer fila antiga
-        flushPresenceQueue().catch(()=>{});
-        return { ok:true, queued:false };
-      }catch(e){
-        // cai para fila
-      }
-    }
-    await enqueue(enriched);
-    window.PWA_TOAST && PWA_TOAST.show({ title:'Presença', text:'Sem conexão. Registro salvo e será enviado quando a internet voltar.', kind:'warn', ms:5000 });
-    return { ok:false, queued:true };
-  }
-
-  // Migração de localStorage → IndexedDB (filaRegistros), compatível com seu código original
-  (async function migrateLocalStorageQueueOnce(){
-    try{
-      const MIG_KEY='pwa:migrated:filaRegistros';
-      if(localStorage.getItem(MIG_KEY)==='1') return;
-      const raw=localStorage.getItem('filaRegistros'); if(!raw) return localStorage.setItem(MIG_KEY,'1');
-      const arr=JSON.parse(raw||'[]'); if(Array.isArray(arr) && arr.length){
-        for(const r of arr){ try{ await enqueue(r); }catch{} }
-      }
-      localStorage.removeItem('filaRegistros');
-      localStorage.setItem(MIG_KEY,'1');
-    }catch{}
+    } catch {}
   })();
+  </script>
 
-  // Eventos para flush automático
-  window.addEventListener('online', ()=> flushPresenceQueue().catch(()=>{}));
-  window.addEventListener('load',  ()=> { if(navigator.onLine) flushPresenceQueue().catch(()=>{}); });
+  <script>
+  // ----- Profile cache API (offline JSON + foto) -----
+  (function(){
+    const CACHE_NAME = 'cracha-user-v1';
+    const PROFILE_JSON_PATH = '/offline/profile.json';
+    const PROFILE_IMG_PATH  = '/offline/profile-photo.jpg';
 
-  // expõe API
-  window.registerPresence     = registerPresence;
-  window.flushPresenceQueue   = flushPresenceQueue;
-})();
-</script>
+    async function cacheUserProfile({ fullName, memberId, photoUrl }) {
+      if (!fullName || !memberId || !photoUrl) { console.warn('[PWA] cacheUserProfile: dados faltando'); return; }
+      const profile = { fullName, memberId, photoLocal: PROFILE_IMG_PATH, ts: Date.now() };
+      const profileRes = new Response(JSON.stringify(profile), { headers: { 'Content-Type': 'application/json' } });
+
+      // IMPORTANTE: não usar credentials:'include' para evitar CORS com credenciais
+      const resp = await fetch(photoUrl);
+      if (!resp.ok) throw new Error('Falha ao baixar foto');
+      const photoBlob = await resp.blob();
+      const photoRes = new Response(photoBlob, { headers: { 'Content-Type': photoBlob.type || 'image/jpeg' } });
+
+      const cache = await caches.open(CACHE_NAME);
+      await Promise.all([ cache.put(PROFILE_JSON_PATH, profileRes), cache.put(PROFILE_IMG_PATH,  photoRes) ]);
+      localStorage.setItem('pwa:profileCached', '1');
+      console.log('[PWA] Perfil salvo para uso offline');
+    }
+
+    async function loadUserProfile() {
+      try {
+        const cache = await caches.open(CACHE_NAME);
+        const res = await cache.match(PROFILE_JSON_PATH);
+        if (!res) return null;
+        const profile = await res.json();
+        return { ...profile, photoUrl: profile.photoLocal || PROFILE_IMG_PATH };
+      } catch { return null; }
+    }
+
+    function getLaunchParams(){
+      const params = new URLSearchParams(location.search);
+      if ([...params].length) return params;
+      try {
+        const raw = localStorage.getItem('pwa:lastCtx'); if (!raw) return params;
+        const { search } = JSON.parse(raw) || {};
+        return search ? new URLSearchParams(search) : params;
+      } catch { return params; }
+    }
+
+    window.cacheUserProfile = cacheUserProfile;
+    window.loadUserProfile  = loadUserProfile;
+    window.getLaunchParams  = getLaunchParams;
+  })();
+  </script>
+
+  <script>
+  // ----- Sync banner + smart profile cache (URL/dataURL/base64) -----
+  (function(){
+    const CACHE_NAME = 'cracha-user-v1';
+    const PROFILE_JSON_PATH = '/offline/profile.json';
+    const PROFILE_IMG_PATH  = '/offline/profile-photo.jpg';
+
+    const $ = (sel) => document.querySelector(sel);
+    const banner = $('#syncBanner');
+    const btnNow = $('#syncNowBtn');
+    const btnClose = $('#syncCloseBtn');
+    const msg = $('#syncBannerMsg');
+
+    const isStandalone = () =>
+      (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone;
+
+    function base64PuroParaDataURL(b64, mime='image/jpeg'){ const clean = (b64||'').replace(/\s+/g,''); return `data:${mime};base64,${clean}`; }
+    function ehDataURL(s){ return /^data:image\/[a-zA-Z0-9.+-]+;base64,/.test(s||''); }
+    function pareceBase64(s){ return !!s && /^[A-Za-z0-9+\/=\s]+$/.test(s) && s.replace(/\s+/g,'').length > 100; }
+
+    function blobFromDataURL(dataURL){
+      const arr = dataURL.split(','); const mime = (arr[0].match(/data:(.*?);base64/)||[])[1] || 'application/octet-stream';
+      const bstr = atob(arr[1]); let n = bstr.length; const u8 = new Uint8Array(n); while(n--) u8[n] = bstr.charCodeAt(n);
+      return new Blob([u8], { type: mime });
+    }
+
+    async function urlToDataURL(url){
+      const res = await fetch(url); // sem credentials
+      if (!res.ok) throw new Error('fetch-failed');
+      const blob = await res.blob();
+      return await new Promise((resolve, reject) => {
+        const fr = new FileReader(); fr.onload = () => resolve(fr.result); fr.onerror = reject; fr.readAsDataURL(blob);
+      });
+    }
+
+    async function putInCache(path, response){ const cache = await caches.open(CACHE_NAME); await cache.put(path, response); }
+
+    async function cacheUserProfileSmart({ fullName, memberId, photo }) {
+      if (!fullName || !memberId) throw new Error('missing-name-or-id');
+      let dataURL = null; let reason  = null;
+
+      try {
+        if (ehDataURL(photo))       dataURL = photo;
+        else if (pareceBase64(photo)) dataURL = base64PuroParaDataURL(photo, 'image/jpeg');
+        else if (photo)             dataURL = await urlToDataURL(photo);
+      } catch (e) { reason = e && e.message || 'photo-convert-failed'; }
+
+      const profile = { fullName, memberId, photoLocal: PROFILE_IMG_PATH, ts: Date.now(), needsPhotoSync: !dataURL };
+      await putInCache(PROFILE_JSON_PATH, new Response(JSON.stringify(profile), { headers: { 'Content-Type': 'application/json' }}));
+
+      if (dataURL) {
+        const blob = blobFromDataURL(dataURL);
+        await putInCache(PROFILE_IMG_PATH, new Response(blob, { headers: { 'Content-Type': blob.type || 'image/jpeg' }}));
+        localStorage.setItem('pwa:profileCached', '1');
+        localStorage.removeItem('pwa:needsPhotoSync');
+      } else {
+        localStorage.setItem('pwa:needsPhotoSync', reason || 'unknown');
+      }
+      console.log('[PWA] Perfil salvo (foto:', dataURL ? 'ok' : 'pendente', ')');
+    }
+    window.cacheUserProfileSmart = cacheUserProfileSmart;
+
+    async function ensureProfileFromURL({ cleanQuery=true } = {}) {
+      try {
+        const getParams = () => (typeof window.getLaunchParams === 'function') ? window.getLaunchParams() : new URLSearchParams(location.search);
+        const params = getParams();
+        const fullName = params.get('name') || params.get('fullname') || params.get('nome');
+        const memberId = params.get('memberId') || params.get('id') || params.get('matricula');
+        let photo = params.get('photo') || params.get('foto') || params.get('image');
+
+        if (!fullName || !memberId) return false;
+
+        if (typeof window.loadUserProfile === 'function') {
+          try {
+            const cached = await window.loadUserProfile();
+            if (cached && String(cached.memberId) === String(memberId) && !cached.needsPhotoSync) return true;
+          } catch {}
+        }
+
+        if (photo && !ehDataURL(photo) && pareceBase64(photo)) { photo = base64PuroParaDataURL(photo, 'image/jpeg'); }
+
+        await cacheUserProfileSmart({ fullName, memberId, photo });
+
+        if (cleanQuery && (location.search || '').length > 1 && history.replaceState) { history.replaceState(null, '', location.pathname); }
+        return true;
+      } catch (e) { console.warn('[PWA] ensureProfileFromURL falhou:', e); return false; }
+    }
+    window.ensureProfileFromURL = ensureProfileFromURL;
+
+    function showSyncBanner(text){ const el = document.getElementById('syncBanner'); if (!el) return; if (text) (document.getElementById('syncBannerMsg').textContent = text); el.style.display='block'; }
+    function hideSyncBanner(){ const el = document.getElementById('syncBanner'); if (!el) return; el.style.display='none'; }
+
+    async function hasOfflineProfile(){
+      try { const cache = await caches.open(CACHE_NAME); const res = await cache.match(PROFILE_JSON_PATH); return !!res; }
+      catch { return false; }
+    }
+
+    async function maybeShowOnLoad(){
+      if (!isStandalone()) return;
+      const noProfile = !(await hasOfflineProfile());
+      const needPhoto = !!localStorage.getItem('pwa:needsPhotoSync');
+      if (noProfile || needPhoto) {
+        showSyncBanner( noProfile ? 'Conecte-se uma vez para salvar seus dados e usar offline.' : 'Conecte-se para baixar a sua foto e finalizar a sincronização.' );
+      }
+    }
+
+    async function trySyncNow(){
+      if (typeof window.ensureProfileFromURL !== 'function') return;
+      const ok = await window.ensureProfileFromURL({ cleanQuery:false });
+      if (ok) {
+        localStorage.removeItem('pwa:needsPhotoSync');
+        hideSyncBanner();
+        console.log('[PWA] Sincronização concluída.');
+      } else {
+        showSyncBanner('Ainda não foi possível sincronizar. Verifique sua conexão.');
+      }
+    }
+
+    const btnNow = document.getElementById('syncNowBtn');
+    const btnClose = document.getElementById('syncCloseBtn');
+    btnNow && btnNow.addEventListener('click', trySyncNow);
+    btnClose && btnClose.addEventListener('click', hideSyncBanner);
+
+    window.addEventListener('online', trySyncNow);
+    window.addEventListener('load', () => {
+      if (navigator.onLine) { trySyncNow().then(ok => { if (!ok) maybeShowOnLoad(); }); }
+      else { maybeShowOnLoad(); }
+    });
+  })();
+  </script>
+
+  <script>
+  // ----- Toast API -----
+  (function(){
+    function showToast({title, text, kind='info', ms=3500}){
+      const wrap=document.getElementById('pwaToasts'); if(!wrap) return;
+      const el=document.createElement('div'); el.className='pwa-toast '+kind;
+      el.innerHTML=(title?'<div class="title">'+title+'</div>':'')+(text||'');
+      wrap.appendChild(el);
+      setTimeout(()=>{ el.style.opacity='0'; el.style.transition='opacity .2s'; }, Math.max(0,ms-180));
+      setTimeout(()=>{ el.remove(); }, ms);
+    }
+    window.PWA_TOAST={ show:showToast };
+  })();
+  </script>
+
+  <script>
+  // ----- Presence queue (IndexedDB) + envio online -----
+  (function(){
+    const ENDPOINT = (typeof window.ENDPOINT === 'string' && window.ENDPOINT) || window.PRESENCE_ENDPOINT || '/api/presence';
+    const DB_NAME = 'cracha-db'; const STORE = 'presenceQueue';
+
+    function withDB(cb){
+      return new Promise((resolve,reject)=>{
+        const open=indexedDB.open(DB_NAME, 3);
+        open.onupgradeneeded=()=>{ const db=open.result; if(!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE,{keyPath:'id',autoIncrement:true}); };
+        open.onsuccess=()=>cb(open.result).then(resolve,reject);
+        open.onerror =()=>reject(open.error);
+      });
+    }
+    function enqueue(payload){
+      return withDB(db=>new Promise((res,rej)=>{
+        const tx=db.transaction(STORE,'readwrite'); tx.objectStore(STORE).add({payload, createdAt:Date.now()});
+        tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error);
+      }));
+    }
+    function allQueue(){
+      return withDB(db=>new Promise((res,rej)=>{
+        const out=[]; const tx=db.transaction(STORE,'readonly'); const req=tx.objectStore(STORE).openCursor();
+        req.onsuccess=()=>{ const c=req.result; if(c){ out.push({id:c.key, ...c.value}); c.continue(); } else res(out); };
+        req.onerror=()=>rej(req.error);
+      }));
+    }
+    function removeId(id){
+      return withDB(db=>new Promise((res,rej)=>{
+        const tx=db.transaction(STORE,'readwrite'); tx.objectStore(STORE).delete(id);
+        tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error);
+      }));
+    }
+
+    async function postForm(url, data, { timeoutMs=15000 }={}){
+      const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(), timeoutMs);
+      try{
+        const fd=new URLSearchParams(); Object.keys(data||{}).forEach(k=>fd.append(k, data[k]));
+        const r=await fetch(url,{ method:'POST', body:fd, redirect:'follow', signal:ctrl.signal }); // sem credentials
+        if(!r.ok){ console.warn('[PWA] postForm falhou:', r.status, r.statusText); throw new Error('http-'+r.status); }
+        return await r.text().catch(()=> '');
+      } finally { clearTimeout(t); }
+    }
+
+    async function flushPresenceQueue(){
+      const q = await allQueue();
+      if(!q.length || !navigator.onLine) return;
+      for (const it of q){
+        try{ await postForm(ENDPOINT, it.payload); await removeId(it.id); }
+        catch(e){ /* mantém na fila */ }
+      }
+    }
+
+    async function registerPresence(payload){
+      const enriched = { ...payload, ua:navigator.userAgent, ts:Date.now() };
+      if(navigator.onLine){
+        try{
+          await postForm(ENDPOINT, enriched);
+          window.PWA_TOAST && PWA_TOAST.show({ title:'Presença', text:'Registro enviado com sucesso.', kind:'success' });
+          flushPresenceQueue().catch(()=>{});
+          return { ok:true, queued:false };
+        }catch(e){ console.warn('[PWA] Envio online falhou, enfileirando:', e); }
+      }
+      await enqueue(enriched);
+      window.PWA_TOAST && PWA_TOAST.show({ title:'Presença', text:'Sem conexão. Registro salvo e será enviado quando a internet voltar.', kind:'warn', ms:5000 });
+      return { ok:false, queued:true };
+    }
+
+    (async function migrateLocalStorageQueueOnce(){
+      try{
+        const MIG_KEY='pwa:migrated:filaRegistros';
+        if(localStorage.getItem(MIG_KEY)==='1') return;
+        const raw=localStorage.getItem('filaRegistros'); if(!raw) return localStorage.setItem(MIG_KEY,'1');
+        const arr=JSON.parse(raw||'[]'); if(Array.isArray(arr) && arr.length){ for(const r of arr){ try{ await enqueue(r); }catch{} } }
+        localStorage.removeItem('filaRegistros'); localStorage.setItem(MIG_KEY,'1');
+      }catch{}
+    })();
+
+    window.addEventListener('online', ()=> flushPresenceQueue().catch(()=>{}));
+    window.addEventListener('load',  ()=> { if(navigator.onLine) flushPresenceQueue().catch(()=>{}); });
+
+    window.registerPresence   = registerPresence;
+    window.flushPresenceQueue = flushPresenceQueue;
+  })();
+  </script>
+
+  <script>
+  // ----- Install banner (Chrome/Edge) + instruções (Safari) -----
+  (function(){
+    const banner = document.getElementById('pwaBanner');
+    const installBtn = document.getElementById('pwaInstallBtn');
+    const closeBtn = document.getElementById('pwaCloseBtn');
+    const hint = document.getElementById('pwaHint');
+
+    const isStandalone = () => (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone;
+    const UA = navigator.userAgent.toLowerCase();
+    const isIOS = /iphone|ipad|ipod/.test(UA);
+    const isAndroid = /android/.test(UA);
+    const isSafari = /^((?!chrome|crios|fxios|edgios|android).)*safari/.test(navigator.userAgent);
+    const isChrome = /chrome|crios/.test(navigator.userAgent) && !/edg/i.test(navigator.userAgent);
+    const isEdge = /edg\//i.test(navigator.userAgent);
+
+    let deferredPrompt;
+
+    function showBanner() { if (!isStandalone()) banner.style.display = 'block'; }
+    function hideBanner() { banner.style.display = 'none'; }
+
+    function setHintTextForPlatform() {
+      if (isIOS && isSafari) { hint.innerHTML = 'iPhone/iPad: toque em <strong>Compartilhar</strong> → <strong>Adicionar à Tela de Início</strong>.'; return; }
+      if (!isIOS && isSafari){ hint.innerHTML = 'Safari (macOS): Arquivo → <strong>Adicionar à Dock</strong> (ou Compartilhar → <strong>Adicionar à Dock</strong>).'; return; }
+      if (isAndroid && isChrome){ hint.innerHTML = 'Android/Chrome: menu ⋮ → <strong>Instalar app</strong>.'; return; }
+      if (isAndroid && isEdge){ hint.innerHTML = 'Android/Edge: menu ⋮ → <strong>Instalar este site como app</strong>.'; return; }
+      hint.textContent = 'Dica: procure “instalar/adicionar à tela inicial” no menu do navegador.';
+    }
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault(); deferredPrompt = e;
+      setHintTextForPlatform(); installBtn.style.display = 'inline-block'; showBanner();
+    });
+
+    window.addEventListener('load', () => {
+      if (isStandalone()) return;
+      setTimeout(() => { if (!deferredPrompt) { setHintTextForPlatform(); installBtn.style.display = 'none'; showBanner(); } }, 1800);
+    });
+
+    installBtn?.addEventListener('click', async () => {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      await deferredPrompt.userChoice;
+      deferredPrompt = null;
+      hideBanner();
+    });
+
+    closeBtn?.addEventListener('click', hideBanner);
+
+    window.addEventListener('appinstalled', () => {
+      hideBanner();
+      window.PWA_TOAST && PWA_TOAST.show({ title:'Instalação', text:'App instalado com sucesso.', kind:'success' });
+    });
+
+    // Garantir registro do SW
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.getRegistration().then(reg => {
+          if (!reg) navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(()=>{});
+        });
+      });
+    }
+  })();
+  </script>
 </body>
 </html>
