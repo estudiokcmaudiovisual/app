@@ -128,8 +128,10 @@
     .badge-logo img{ max-width:80%; height:auto; }
     .badge-title{ text-align:center; color:#333; margin:0 0 8px; font-size:clamp(16px, 2.8vw, 22px); }
     .badge-status{ font-size:13px; color:var(--muted); text-align:center; min-height:18px; }
-    .badge-reader{ width:100%; margin-top:8px; }
-    #reader{ width:100%; margin:16px auto 0; min-height:240px; border-radius:12px; border:1px dashed #cbd5e1; background:#f1f5f9; }
+
+    /* câmera mais compacta p/ caber tudo */
+    .badge-reader{ width:100%; margin-top:4px; }
+    #reader{ width:100%; margin:10px auto 0; min-height:180px; border-radius:12px; border:1px dashed #cbd5e1; background:#f1f5f9; }
 
     .badge-form{ margin-top:8px; }
     .badge-form label{ font-size:13px; color:#555; }
@@ -137,11 +139,21 @@
       width:100%; padding:12px; margin-top:8px; border-radius:8px; border:1px solid var(--border); font-size:14px; background:#fff;
     }
     .badge-form input[readonly]{ background:#f7f7f7; color:#555; cursor:not-allowed; }
-    .badge-form button{ background:#A40000; color:#fff; font-weight:600; cursor:pointer; transition:background .2s; }
+    .badge-form button{ background:#A40000; color:#fff; font-weight:600; cursor:pointer; transition:background .2s; margin-top:10px; }
     .badge-form button:hover{ background:#7a0000; }
     .badge-msg{ margin-top:10px; font-weight:600; color:#6b7280; min-height:20px; text-align:center; }
     .badge-msg.error{ color:var(--danger); }
     .hint{ font-size:12px; color:#6b7280; margin-top:6px; }
+
+    /* bloco pendentes gruda no botão e rola dentro da tabela */
+    #lista-pendentes{ margin-top:10px; }
+    .table-scroll{ border:1px solid #eee; border-radius:8px; overflow:hidden; }
+    .table-scroll table{ width:100%; border-collapse:collapse; }
+    .table-scroll thead th{ position:sticky; top:0; background:#fafafa; z-index:1; }
+    .table-scroll tbody{ display:block; max-height:170px; overflow-y:auto; }
+    .table-scroll thead, .table-scroll tbody tr{ display:table; width:100%; table-layout:fixed; }
+    .table-scroll th, .table-scroll td{ padding:8px; border-bottom:1px solid #eee; text-align:left; font:14px/1.35 Inter, system-ui; }
+    #lista-pendentes .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;background:#eef2ff;color:#1d4ed8}
 
     .top-actions{ display:flex; gap:8px; justify-content:center; margin-top:12px; flex-wrap:wrap; }
     .btn-outline{ background:#fff; color:#111; border:1px solid #ccc; }
@@ -194,11 +206,6 @@
     .proc-success{background:#bbf7d0;border:1px solid #22c55e}   /* verde */
     .proc-queued{background:#dbeafe;border:1px solid #3b82f6}    /* azul */
     .proc-error{background:#fecaca;border:1px solid #ef4444}     /* vermelho leve */
-
-    /* Tabelas de histórico e pendentes */
-    #lista-registros table, #lista-pendentes table{width:100%;border-collapse:collapse;font:14px/1.35 Inter, system-ui}
-    #lista-registros th, #lista-registros td, #lista-pendentes th, #lista-pendentes td{padding:8px;border-bottom:1px solid #eee;text-align:left}
-    #lista-pendentes .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;background:#eef2ff;color:#1d4ed8}
 
     @media (max-width:560px){ .proc-bar{top:72px} }
   </style>
@@ -261,6 +268,18 @@
 
               <p id="msg" class="badge-msg"></p>
 
+              <!-- PENDENTES: logo abaixo do botão, com scroll interno -->
+              <div id="lista-pendentes">
+                <h3>Registros pendentes de envio</h3>
+                <div class="table-scroll">
+                  <table>
+                    <thead><tr><th style="width:28%">Data/Hora</th><th style="width:22%">Nome</th><th style="width:18%">Código</th><th style="width:22%">Evento</th><th style="width:10%">Status</th></tr></thead>
+                    <tbody id="tabela-pendentes"></tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- (Opcional) Histórico local oculto -->
               <div id="lista-registros" style="display:none">
                 <h3>Presenças Registradas</h3>
                 <table>
@@ -269,14 +288,6 @@
                 </table>
               </div>
 
-              <!-- NOVO: Fila de pendentes visível -->
-              <div id="lista-pendentes" style="margin-top:16px;">
-                <h3>Registros pendentes de envio</h3>
-                <table>
-                  <thead><tr><th>Data/Hora</th><th>Nome</th><th>Código</th><th>Evento</th><th>Status</th></tr></thead>
-                  <tbody id="tabela-pendentes"></tbody>
-                </table>
-              </div>
             </div>
           </div>
 
@@ -644,7 +655,6 @@
       const profile = { fullName, memberId, photoLocal: PROFILE_IMG_PATH, ts: Date.now() };
       const profileRes = new Response(JSON.stringify(profile), { headers: { 'Content-Type': 'application/json' } });
 
-      // IMPORTANTE: sem credentials para reduzir CORS com credenciais
       const resp = await fetch(photoUrl);
       if (!resp.ok) throw new Error('Falha ao baixar foto');
       const photoBlob = await resp.blob();
@@ -745,10 +755,17 @@
     }
     function allQueue(){
       return withDB(db=>new Promise((res,rej)=>{
-        const out=[]; const tx=db.transaction(STORE,'readonly'); const req=tx.objectStore(STORE).openCursor();
-        req.onsuccess=()=>{ const c=req.result; if(c){ out.push({id:c.key, ...c.value}); c.continue(); } else res(out); };
-        req.onerror=()=>rej(req.error);
-      }));
+        const out=[]; const tx=db.transaction(STORE,'readonly'); const req=tx.tx? tx.tx : tx; /* guard */
+        const cursorReq = tx.objectStore(STORE).openCursor();
+        cursorReq.onsuccess=()=>{ const c=cursorReq.result; if(c){ out.push({id:c.key, ...c.value}); c.continue(); } else res(out); };
+        cursorReq.onerror=()=>rej(cursorReq.error);
+      })).catch(async()=>{ // fallback sem guard (alguns navegadores antigos)
+        return withDB(db=>new Promise((res,rej)=>{
+          const out=[]; const tx=db.transaction(STORE,'readonly'); const req=tx.objectStore(STORE).openCursor();
+          req.onsuccess=()=>{ const c=req.result; if(c){ out.push({id:c.key, ...c.value}); c.continue(); } else res(out); };
+          req.onerror=()=>rej(req.error);
+        }));
+      });
     }
     function removeId(id){
       return withDB(db=>new Promise((res,rej)=>{
@@ -825,7 +842,7 @@
         const { payload } = it;
         const tr = document.createElement('tr');
         const when = new Date(payload.ts || it.createdAt).toLocaleString('pt-BR');
-        tr.innerHTML = `<td>${when}</td><td>${payload.nome||''}</td><td>${payload.codigo||''}</td><td>${payload.evento||''}</td><td><span class="badge">aguardando envio</span></td>`;
+        tr.innerHTML = `<td>${when}</td><td>${payload.nome||''}</td><td>${payload.codigo||''}</td><td>${payload.evento||''}</td><td><span class="badge">aguardando</span></td>`;
         pendTbody.appendChild(tr);
       });
     }
@@ -883,33 +900,32 @@
 
     async function cacheUserProfileSmart({ fullName, memberId, photo }) {
       if (!fullName || !memberId) throw new Error('missing-name-or-id');
-      let dataURL = null; let reason  = null;
+      let dataURL = null;
 
       try {
         if (ehDataURL(photo))         dataURL = photo;
         else if (pareceBase64(photo)) dataURL = base64PuroParaDataURL(photo, 'image/jpeg');
         else if (photo)               dataURL = await urlToDataURL(photo);
-      } catch (e) { reason = e && e.message || 'photo-convert-failed'; }
+      } catch (e) { /* sem impacto no status */ }
 
-      const profile = { fullName, memberId, photoLocal: PROFILE_IMG_PATH, ts: Date.now(), needsPhotoSync: !dataURL };
+      const profile = { fullName, memberId, photoLocal: dataURL ? PROFILE_IMG_PATH : null, ts: Date.now() };
       await putInCache(PROFILE_JSON_PATH, new Response(JSON.stringify(profile), { headers: { 'Content-Type': 'application/json' }}));
 
       if (dataURL) {
-        const blob = blobFromDataURL(dataURL);
+        const blob = (()=>{
+          const arr = dataURL.split(','); const mime = (arr[0].match(/data:(.*?);base64/)||[])[1] || 'image/jpeg';
+          const bstr = atob(arr[1]); let n = bstr.length; const u8 = new Uint8Array(n); while(n--) u8[n] = bstr.charCodeAt(n);
+          return new Blob([u8], { type: mime });
+        })();
         await putInCache(PROFILE_IMG_PATH, new Response(blob, { headers: { 'Content-Type': blob.type || 'image/jpeg' }}));
-        localStorage.setItem('pwa:profileCached', '1');
-        localStorage.removeItem('pwa:needsPhotoSync');
-      } else {
-        localStorage.setItem('pwa:needsPhotoSync', reason || 'unknown');
+        localStorage.setItem('pwa:profileCached','1');
       }
-      console.log('[PWA] Perfil salvo (foto:', dataURL ? 'ok' : 'pendente', ')');
+      console.log('[PWA] Perfil salvo (JSON ok, foto opcional).');
     }
     window.cacheUserProfileSmart = cacheUserProfileSmart;
 
-    async function hasOfflineProfile(){
-      try { const cache = await caches.open(CACHE_NAME); const res = await cache.match(PROFILE_JSON_PATH); return !!res; }
-      catch { return false; }
-    }
+    async function hasOfflineProfileJSON(){ try{ const c=await caches.open(CACHE_NAME); return !!(await c.match(PROFILE_JSON_PATH)); }catch{return false;} }
+    async function hasOfflineProfileIMG(){  try{ const c=await caches.open(CACHE_NAME); return !!(await c.match(PROFILE_IMG_PATH));  }catch{return false;} }
 
     async function ensureProfileFromURL({ cleanQuery=true } = {}) {
       try {
@@ -919,19 +935,11 @@
         const memberId = params.get('memberId') || params.get('id') || params.get('matricula');
         let photo = params.get('photo') || params.get('foto') || params.get('image');
 
+        // Se não houver parâmetros, não falha — apenas não faz nada
         if (!fullName || !memberId) return false;
 
-        try {
-          const cache = await caches.open(CACHE_NAME);
-          const res = await cache.match(PROFILE_JSON_PATH);
-          if (res) {
-            const cached = await res.json();
-            const okPhoto = !cached.needsPhotoSync && !!localStorage.getItem('pwa:profileCached');
-            if (String(cached.memberId) === String(memberId) && okPhoto) return true;
-          }
-        } catch {}
-
-        if (photo && !ehDataURL(photo) && pareceBase64(photo)) { photo = base64PuroParaDataURL(photo, 'image/jpeg'); }
+        // Se já existir JSON no cache, consideramos sincronizado (foto é opcional)
+        if (await hasOfflineProfileJSON()) return true;
 
         await cacheUserProfileSmart({ fullName, memberId, photo });
 
@@ -942,30 +950,31 @@
     window.ensureProfileFromURL = ensureProfileFromURL;
 
     function setBannerState(kind, text){
+      const dot = document.getElementById('syncDot');
       if(!banner) return;
       banner.classList.remove('ok','warn','err');
       banner.classList.add(kind);
-      if (dot) dot.style.opacity = '1';
-      if (kind==='ok')   dot.style.background = '#22c55e';
-      if (kind==='warn') dot.style.background = '#fbbf24';
-      if (kind==='err')  dot.style.background = '#f87171';
+      if (dot) {
+        if (kind==='ok')   dot.style.background = '#22c55e';
+        if (kind==='warn') dot.style.background = '#fbbf24';
+        if (kind==='err')  dot.style.background = '#f87171';
+      }
       if (text && msg) msg.textContent = text;
       banner.style.display = 'block';
       if (kind==='ok') {
-        // some automaticamente após 2s
         setTimeout(()=>{ banner.style.display='none'; }, 2000);
       }
     }
     function hideSyncBanner(){ if(banner) banner.style.display='none'; }
 
+    // NOVO: status usa VERIFICAÇÃO REAL DO CACHE (foto opcional)
     async function updateSyncStatus(){
       const online = navigator.onLine;
-      const hasProfile = await hasOfflineProfile();
-      const needsPhoto = !!localStorage.getItem('pwa:needsPhotoSync');
+      const hasJson = await hasOfflineProfileJSON();
 
-      if (online && hasProfile && !needsPhoto) {
+      if (online && hasJson) {
         setBannerState('ok', 'Conectado e sincronizado. Dados carregados.');
-      } else if (!online && hasProfile) {
+      } else if (!online && hasJson) {
         setBannerState('warn', 'Sem conexão. Dados locais disponíveis (modo offline).');
       } else {
         setBannerState('err', online ? 'Conecte-se uma vez para salvar seus dados e usar offline.' : 'Sem conexão e sem dados locais. Conecte-se para sincronizar.');
@@ -973,11 +982,8 @@
     }
 
     async function trySyncNow(){
-      const ok = await window.ensureProfileFromURL({ cleanQuery:false });
+      await window.ensureProfileFromURL({ cleanQuery:false });
       await updateSyncStatus();
-      if (!ok) {
-        setBannerState('warn', 'Ainda não foi possível sincronizar. Verifique sua conexão ou URL de acesso.');
-      }
     }
 
     btnNow && btnNow.addEventListener('click', trySyncNow);
