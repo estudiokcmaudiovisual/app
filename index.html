@@ -161,12 +161,33 @@ body{
 
     /* FABs */
     .fab{
-      position:absolute;right:18px;left: auto;bottom:18px;z-index:10;
-      width:var(--fab-size);height:var(--fab-size);border-radius:999px;border:0;cursor:pointer;
-      background:rgba(255,255,255,.92);color:#111;display:grid;place-items:center;
-      box-shadow:0 8px 24px rgba(0,0,0,.25);transition:transform .15s ease,opacity .15s ease,background .2s;
-      touch-action: manipulation;
-    }
+  position:absolute;
+  right:18px;
+  left:auto;
+  bottom:18px;
+  z-index:10;
+  width:var(--fab-size);
+  height:var(--fab-size);
+  border-radius:999px;
+  border:0;
+  cursor:pointer;
+  background:rgba(255,255,255,.92);
+  color:#111;
+  display:grid;
+  place-items:center;
+  box-shadow:0 8px 24px rgba(0,0,0,.25);
+  transition:transform .15s ease,opacity .15s ease,background .2s;
+  touch-action: manipulation;
+}
+
+/* Apenas o botão da frente */
+#cardFront .fab{
+  right:auto;
+  left:500px;
+  top:750px;
+  bottom:auto;   /* substitui o bottom padrão */
+}
+
     .fab:hover{transform:translateY(-1px)}
     .fab svg{width:32px;height:32px;display:block}
     .fab.secondary{right:18px;left: auto;bottom: 18px;background:rgba(255,255,255,.92)}
