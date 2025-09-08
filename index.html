@@ -115,15 +115,15 @@ body{
   z-index:2;
 }
 /* QR pode ficar um nível acima se quiser garantir */
-.qr-section{ z-index:3; }
+.qr-section{ margin-top: 12px;margin-bottom: 54px;z-index:3; }
 
 .brand-row{display:flex;justify-content:center;align-items:center;min-height:80px}
 .logo-main{max-height:220px;max-width:90%;display:block;filter:brightness(1.05)}
 
 .profile-block{display:grid;justify-items:center;row-gap:0;margin-top:-6px;padding:0 12px}
 .photo{width:min(40%,240px);aspect-ratio:1/1;border-radius:999px;object-fit:cover;border:4px solid rgba(255,255,255,.85);background:rgba(255,255,255,.1)}
-.info{text-align:center}
-.name{font-size:clamp(20px,3.4vw,36px);font-weight:700;margin:12px 0 0;line-height:1.05;text-shadow:0 1px 4px rgba(0,0,0,.35)}
+.info{position: relative; z-index: 4;text-align:center}
+.name{font-size:clamp(20px,3.4vw,44px);font-weight:700;margin:12px 0 0;line-height:1.05;text-shadow:0 1px 4px rgba(0,0,0,.35)}
 .name .name-2{display:block;opacity:.98}
 
 
@@ -138,8 +138,17 @@ body{
 
     .qr-section{z-index:3;display:grid;place-items:center;padding:8px 4px;margin-top:-20px;margin-bottom:54px}
     .qr{
-      width:min(200px,50%); background:#fff;
-      border-radius:16px;padding:10px 10px 36px;display:grid;justify-items:center;align-items:start
+  display:inline-grid;               /* encolhe ao conteúdo */
+  background:#fff;
+  border-radius:16px;
+  padding:10px;                      /* padding uniforme */
+  width:auto;                        /* não força 200px/50% */
+  justify-items:center;
+  align-items:center;
+  line-height:0;                     /* remove espaço extra */
+    }
+    .qr img, .qr canvas{
+  display:block;                     /* elimina espaços invisíveis */
     }
 
     .barcode-rail{position:absolute;right:10px;top:5%;transform:translateY(-50%);z-index:2;pointer-events:none}
@@ -152,7 +161,7 @@ body{
 
     /* FABs */
     .fab{
-      position:absolute;right:14px;bottom:14px;z-index:10;
+      position:absolute;right:18px;left: auto;bottom:18px;z-index:10;
       width:var(--fab-size);height:var(--fab-size);border-radius:999px;border:0;cursor:pointer;
       background:rgba(255,255,255,.92);color:#111;display:grid;place-items:center;
       box-shadow:0 8px 24px rgba(0,0,0,.25);transition:transform .15s ease,opacity .15s ease,background .2s;
@@ -160,7 +169,7 @@ body{
     }
     .fab:hover{transform:translateY(-1px)}
     .fab svg{width:32px;height:32px;display:block}
-    .fab.secondary{right:auto;left:14px;background:rgba(255,255,255,.92)}
+    .fab.secondary{right:18px;left: auto;bottom: 18px;background:rgba(255,255,255,.92)}
 
     /* Verso com rolagem interna e barra oculta */
     .back .content-scroll{
@@ -202,13 +211,27 @@ body{
 
     /* -------- BANNERS (translúcidos/sem borda) -------- */
     .pwa-banner{
-      position:fixed;left:50%;transform:translateX(-50%) translateY(-12px);top:12px;
-      z-index:9998;min-width:280px;max-width:min(92vw,760px);
-      border-radius:14px; padding:10px 12px;
-      box-shadow:0 20px 60px rgba(0,0,0,.22);
-      display:none; opacity:0; transition:opacity .25s ease, transform .25s ease;
-      font:14px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Arial;
-    }
+  position:fixed;
+  left:50%;
+  transform:translateX(-50%) translateY(-12px);
+  top:12px;
+  z-index:9998;
+  width:calc(var(--card-w) * var(--preview-scale));
+  max-width:none;
+  border-radius:14px;
+  padding:12px 14px;
+  box-shadow:0 20px 60px rgba(0,0,0,.22);
+  display:none;
+  opacity:0;
+  transition:opacity .25s ease, transform .25s ease;
+  font:14px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Arial;
+  background:rgba(var(--info-bg-rgb), .28);
+  backdrop-filter:blur(4px);
+
+  /* 🔹 Fonte responsiva */
+  font-size: clamp(12px, 2.6vw, 16px);
+}
+
     .pwa-banner.show{ display:block; opacity:1; transform:translateX(-50%) translateY(0); }
     .pwa-banner .row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
     .pwa-banner .title{font-weight:600;display:flex;align-items:center;gap:8px}
@@ -234,11 +257,27 @@ body{
 
     /* Install banner translúcido */
     .pwa-install-banner{
-      position:fixed;left:50%;transform:translateX(-50%);bottom:16px;z-index:9997;
-      background:rgba(var(--info-bg-rgb), .18);color:#e7f0ff;
-      padding:10px 12px;border-radius:14px;
-      box-shadow:0 20px 60px rgba(0,0,0,.22);display:none;opacity:0;transition:opacity .25s ease, transform .25s ease
-    }
+  position:fixed;
+  left:50%;
+  transform:translateX(-50%);
+  bottom:16px;
+  z-index:9997;
+  width:calc(var(--card-w) * var(--preview-scale));
+  max-width:none;
+  background:rgba(var(--info-bg-rgb), .36);
+  color:#e7f0ff;
+  padding:12px 14px;
+  border-radius:14px;
+  box-shadow:0 20px 60px rgba(0,0,0,.22);
+  display:none;
+  opacity:0;
+  transition:opacity .25s ease, transform .25s ease;
+  backdrop-filter:blur(4px);
+
+  /* 🔹 Fonte responsiva */
+  font-size: clamp(12px, 2.6vw, 16px);
+}
+
     .pwa-install-banner.show{display:block;opacity:1}
     .pwa-install-banner .row{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
     .pwa-install-banner button{border:0;border-radius:10px;padding:8px 12px;cursor:pointer}
