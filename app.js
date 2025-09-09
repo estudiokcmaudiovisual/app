@@ -1,4 +1,4 @@
-/* app.js — toda a lógica do PWA consolidada */
+/* app.js — toda a lógica do PWA consolidada (com dedupe offline e flush com lock) */
 (() => {
   'use strict';
 
@@ -26,6 +26,7 @@
   const currentData = { name:'', code:'', photoUrl:'' };
   let eventoValido = false;
   let qrInstance   = null;
+  let submitBusy   = false;   // evita duplo submit na mesma tela
 
   /* ========= UTILS ========= */
   const px2mm = p => p * 0.264583;
@@ -44,6 +45,17 @@
     if(parts.length<=2) return escHtml(n);
     const first=parts.slice(0,2).join(' '), rest=parts.slice(2).join(' ');
     return `${escHtml(first)}<br><span class="name-2">${escHtml(rest)}</span>`;
+  }
+
+  // UUID v4 para clientKey
+  function uuidv4(){
+    if (typeof crypto!=='undefined' && crypto.randomUUID) return crypto.randomUUID();
+    const a=new Uint8Array(16);
+    if (typeof crypto!=='undefined' && crypto.getRandomValues) crypto.getRandomValues(a);
+    else for(let i=0;i<a.length;i++) a[i]=Math.floor(Math.random()*256);
+    a[6]=(a[6]&0x0f)|0x40; a[8]=(a[8]&0x3f)|0x80;
+    const b=[...a].map((v,i)=>v.toString(16).padStart(2,'0')).join('');
+    return `${b.slice(0,8)}-${b.slice(8,12)}-${b.slice(12,16)}-${b.slice(16,20)}-${b.slice(20)}`;
   }
 
   const isDataUrl=s=>/^data:image\/[a-zA-Z0-9.+-]+;base64,/.test(s||'');
@@ -344,39 +356,79 @@
     });
   })();
 
-  /* ========= FILA / ENVIO (IndexedDB) ========= */
+  /* ========= FILA / ENVIO (IndexedDB, com dedupe e flush lock) ========= */
   (function(){
     const ENDPOINT = CONFIG.ENDPOINT;
     const DB_NAME = 'cracha-db'; const STORE = 'presenceQueue';
+    const DB_VERSION = 4; // v4: índice clientKey
+
+    // lock para evitar flush concorrente
+    let flushing = false;
+    let flushPromise = null;
 
     function withDB(cb){
       return new Promise((resolve,reject)=>{
-        const open=indexedDB.open(DB_NAME, 3);
-        open.onupgradeneeded=()=>{ const db=open.result; if(!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE,{keyPath:'id',autoIncrement:true}); };
+        const open=indexedDB.open(DB_NAME, DB_VERSION);
+        open.onupgradeneeded=(e)=>{
+          const db=open.result;
+          let store;
+          if(!db.objectStoreNames.contains(STORE)){
+            store = db.createObjectStore(STORE,{keyPath:'id',autoIncrement:true});
+          }else{
+            store = e.target.transaction.objectStore(STORE);
+          }
+          try{
+            if (!store.indexNames.contains('clientKey')) {
+              // indexa o campo aninhado payload.clientKey
+              store.createIndex('clientKey', 'payload.clientKey', { unique: true });
+            }
+          }catch(_){}
+        };
         open.onsuccess=()=>cb(open.result).then(resolve,reject);
         open.onerror =()=>reject(open.error);
       });
     }
-    function enqueue(payload){
+
+    function hasClientKey(key){
+      if (!key) return Promise.resolve(false);
       return withDB(db=>new Promise((res,rej)=>{
-        const tx=db.transaction(STORE,'readwrite'); tx.objectStore(STORE).add({payload, createdAt:Date.now()});
-        tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error);
+        const tx=db.transaction(STORE,'readonly');
+        const idx=tx.objectStore(STORE).index('clientKey');
+        const req=idx.getKey(key);
+        req.onsuccess=()=>res(!!req.result);
+        req.onerror =()=>rej(req.error);
+      }));
+    }
+
+    async function enqueue(payload){
+      // evita duplicar na fila pelo mesmo clientKey
+      const key = payload && payload.clientKey;
+      if (key && await hasClientKey(key)) return;
+
+      return withDB(db=>new Promise((res,rej)=>{
+        const tx=db.transaction(STORE,'readwrite');
+        tx.objectStore(STORE).add({payload, createdAt:Date.now()});
+        tx.oncomplete=()=>res();
+        tx.onerror   =()=>rej(tx.error);
       })).then(()=>{ dispatchEvent(new CustomEvent('presence:queued', { detail: { payload } })); });
     }
+
     function allQueue(){
       return withDB(db=>new Promise((res,rej)=>{
         const out=[]; const tx=db.transaction(STORE,'readonly');
         const cursorReq = tx.objectStore(STORE).openCursor();
         cursorReq.onsuccess=()=>{ const c=cursorReq.result; if(c){ out.push({id:c.key, ...c.value}); c.continue(); } else res(out); };
-        cursorReq.onerror=()=>rej(cursorReq.error);
+        cursorReq.onerror =()=>rej(cursorReq.error);
       })).catch(async()=>{
+        // fallback (alguns navegadores antigos)
         return withDB(db=>new Promise((res,rej)=>{
           const out=[]; const tx=db.transaction(STORE,'readonly'); const req=tx.objectStore(STORE).openCursor();
           req.onsuccess=()=>{ const c=req.result; if(c){ out.push({id:c.key, ...c.value}); c.continue(); } else res(out); };
-          req.onerror=()=>rej(req.error);
+          req.onerror =()=>rej(req.error);
         }));
       });
     }
+
     function removeId(id){
       return withDB(db=>new Promise((res,rej)=>{
         const tx=db.transaction(STORE,'readwrite'); tx.objectStore(STORE).delete(id);
@@ -395,20 +447,33 @@
     }
 
     async function flushPresenceQueue(){
-      const q = await allQueue();
-      if(!q.length || !navigator.onLine) return;
-      for (const it of q){
-        try{
-          await postForm(ENDPOINT, it.payload);
-          await removeId(it.id);
-          dispatchEvent(new CustomEvent('presence:sent', { detail: { id: it.id, payload: it.payload } }));
-        } catch(e){ /* mantém na fila */ }
-      }
-      renderPending();
+      if (flushing) return flushPromise;             // evita flush concorrente
+      if (!navigator.onLine) return;
+
+      flushing = true;
+      flushPromise = (async ()=> {
+        const q = await allQueue();
+        if(!q.length) return;
+
+        for (const it of q){
+          try{
+            await postForm(ENDPOINT, it.payload);
+            await removeId(it.id);
+            dispatchEvent(new CustomEvent('presence:sent', { detail: { id: it.id, payload: it.payload } }));
+          } catch(e){
+            // mantém na fila; segue para o próximo para não travar o lote
+          }
+        }
+        renderPending();
+      })().finally(()=>{ flushing=false; flushPromise=null; });
+
+      return flushPromise;
     }
 
     async function registerPresence(payload){
-      const enriched = { ...payload, ua:navigator.userAgent, ts:Date.now() };
+      // enriquece com clientKey (dedupe) + metadados
+      const enriched = { ...payload, ua:navigator.userAgent, ts:Date.now(), clientKey: uuidv4() };
+
       if(navigator.onLine){
         try{
           await postForm(ENDPOINT, enriched);
@@ -417,9 +482,11 @@
           dispatchEvent(new CustomEvent('presence:sent-now', { detail: { payload: enriched } }));
           return { ok:true, queued:false };
         }catch(e){
+          // falhou online → segue para fila
           console.warn('[PWA] Envio online falhou, enfileirando:', e);
         }
       }
+
       await enqueue(enriched);
       window.PWA_TOAST && PWA_TOAST.show({ title:'Presença', text:'Sem conexão. Registro salvo e será enviado quando a conexão voltar.', kind:'warn', ms:5000 });
       renderPending();
@@ -613,23 +680,46 @@
       },true);
     });
 
-    // Submit do verso
+    // Submit do verso (com trava anti duplo-clique)
     form?.addEventListener("submit", async (e)=>{
       e.preventDefault();
-      const bip=document.getElementById('bip');
-      if(!eventoValido || !eventoInput?.value.trim()){ mostrarMensagem("Leia o QR do evento para prosseguir.", true); return; }
-      const registro={ nome:(nomeInput?.value||"").trim(), codigo:(codigoInput?.value||"").trim(), evento:(eventoInput?.value||"").trim(), horario:new Date().toLocaleString("pt-BR") };
-      window.PROC && PROC.pending('Aguarde: processando registro digital…');
+      if (submitBusy) return;
+      submitBusy = true;
+
       try{
-        const res=await window.registerPresence(registro);
-        if(res && res.ok){ mostrarMensagem("Presença registrada com sucesso!", false); try{bip&&bip.play();}catch{}; window.PROC&&PROC.success('Registro realizado com sucesso!'); }
-        else{ mostrarMensagem("Sem conexão estável. Registro salvo e será enviado automaticamente.", true); window.PROC&&PROC.queued('Sem internet: registro será enviado quando a conexão voltar.'); }
-      }catch(err){
-        console.warn('[PWA] Envio online falhou, enfileirando:', err);
-        mostrarMensagem("Não foi possível registrar agora. Salvamos e tentaremos novamente.", true);
-        window.PROC&&PROC.queued('Registro salvo. Enviaremos quando a conexão voltar.');
+        const bip=document.getElementById('bip');
+        if(!eventoValido || !eventoInput?.value.trim()){
+          mostrarMensagem("Leia o QR do evento para prosseguir.", true);
+          return;
+        }
+        const registro={
+          nome:(nomeInput?.value||"").trim(),
+          codigo:(codigoInput?.value||"").trim(),
+          evento:(eventoInput?.value||"").trim(),
+          horario:new Date().toLocaleString("pt-BR")
+        };
+        window.PROC && PROC.pending('Aguarde: processando registro digital…');
+        try{
+          const res=await window.registerPresence(registro);
+          if(res && res.ok){
+            mostrarMensagem("Presença registrada com sucesso!", false);
+            try{bip&&bip.play();}catch{}
+            window.PROC&&PROC.success('Registro realizado com sucesso!');
+          }else{
+            mostrarMensagem("Sem conexão estável. Registro salvo e será enviado automaticamente.", true);
+            window.PROC&&PROC.queued('Sem internet: registro será enviado quando a conexão voltar.');
+          }
+        }catch(err){
+          console.warn('[PWA] Envio online falhou, enfileirando:', err);
+          mostrarMensagem("Não foi possível registrar agora. Salvamos e tentaremos novamente.", true);
+          window.PROC&&PROC.queued('Registro salvo. Enviaremos quando a conexão voltar.');
+        }
+        if (eventoInput) eventoInput.value="";
+        eventoValido=false;
+      } finally {
+        // libera o submit após um pequeno debounce para evitar toques múltiplos
+        setTimeout(()=>{ submitBusy=false; }, 300);
       }
-      if (eventoInput) eventoInput.value=""; eventoValido=false;
     });
 
     // Triple-click reset
@@ -657,7 +747,7 @@
   window.addEventListener('online', ()=>{ setStatusOfflineUI(); (window.flushPresenceQueue&&flushPresenceQueue().catch(()=>{})); if (window.updateSyncStatus) window.updateSyncStatus(); });
   window.addEventListener('offline', ()=>{ setStatusOfflineUI(); if (window.updateSyncStatus) window.updateSyncStatus(); });
 
-  // Sincroniza fila quando volta o foco
+  // Sincroniza fila quando volta o foco (com lock no flush)
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden && navigator.onLine && typeof window.flushPresenceQueue==='function') window.flushPresenceQueue().catch(()=>{});
   });
@@ -721,16 +811,16 @@
         try {
           const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
 
-          reg.addEventListener('updatefound', () => {
-            const newWorker = reg.installing;
-            if (!newWorker) return;
-            newWorker.addEventListener('statechange', () => {
-              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                // peça para ativar imediatamente
-                try { newWorker.postMessage({ type: 'SKIP_WAITING' }); } catch {}
-              }
-            });
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+          if (!newWorker) return;
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              // peça para ativar imediatamente (não interfere na dedupe)
+              try { newWorker.postMessage({ type: 'SKIP_WAITING' }); } catch {}
+            }
           });
+        });
 
           let hasRefreshed = false;
           navigator.serviceWorker.addEventListener('controllerchange', () => {
