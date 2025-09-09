@@ -229,16 +229,44 @@ body{
 .proc-queued{background:#dbeafe;border:1px solid #3b82f6}
 .proc-error{background:#fecaca;border:1px solid #ef4444}
 
-/* Loader overlay (com logo) */
+/* Loader overlay (apenas bolinhas horizontais — multicolor) */
 .loader{
-  position:fixed; inset:0; background:linear-gradient(180deg,#0f0f10,#1b1b1c);
-  display:flex; flex-direction:column; gap:16px; align-items:center; justify-content:center; color:#fff; z-index:100000
+  position:fixed;
+  inset:0;
+  background:linear-gradient(180deg,#0f0f10,#1b1b1c);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:#fff;
+  z-index:100000;
 }
-.loader-logo{ width:min(120px,28vw); height:auto; image-rendering:-webkit-optimize-contrast; image-rendering:crisp-edges; filter:drop-shadow(0 6px 24px rgba(0,0,0,.35)); }
-.loader .dot{width:10px;height:10px;border-radius:50%;background:#fff;opacity:.85;animation:bounce .9s infinite alternate}
-.loader .dot:nth-child(2){margin:0 10px;animation-delay:.15s}
-.loader .dot:nth-child(3){animation-delay:.3s}
-@keyframes bounce{to{transform:translateY(-8px);opacity:1}}
+
+/* container das bolinhas em linha */
+.loader-inner{
+  display:flex;
+  align-items:center;
+  gap:14px;                 /* espaçamento horizontal entre as bolinhas */
+}
+
+/* bolinhas */
+.loader .dot{
+  width:10px;
+  height:10px;
+  border-radius:50%;
+  background:#fff;          /* fallback */
+  opacity:.85;
+  animation:loader-bounce .9s infinite alternate;
+}
+
+/* cores e delays (efeito “onda”) */
+.loader .dot:nth-child(1){ background:#ef4444; }  /* vermelho */
+.loader .dot:nth-child(2){ background:#f59e0b; animation-delay:.12s; } /* âmbar */
+.loader .dot:nth-child(3){ background:#22c55e; animation-delay:.24s; } /* verde */
+
+/* animação com leve salto vertical */
+@keyframes loader-bounce{
+  to{ transform:translateY(-7px); opacity:1; }
+}
 
 /* === FIX DA TABELA DE PENDÊNCIAS === */
 #lista-pendentes .table-scroll{ max-height:170px; overflow:auto; overflow-x:hidden; }
@@ -257,10 +285,13 @@ body{
 </head>
 <body>
   <!-- LOADING -->
-  <div id="loader" class="loader" aria-live="polite" aria-busy="true">
-    <img class="loader-logo" src="/icon-512.png" alt="Crachá Digital">
-    <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+<div id="loader" class="loader" aria-live="polite" aria-busy="true">
+  <div class="loader-inner" role="status" aria-label="Carregando">
+    <span class="dot" aria-hidden="true"></span>
+    <span class="dot" aria-hidden="true"></span>
+    <span class="dot" aria-hidden="true"></span>
   </div>
+</div>
 
   <div class="wrap">
     <div class="preview-wrap" id="previewWrap">
