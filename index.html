@@ -31,12 +31,9 @@
   --primary:#1e88e5; --text:#111; --muted:#9aa0a6;
   --card-w:638px; --card-h:1011px;
 
-  /* BOTÃO “tamanho de polegar” */
   --fab-size: 72px;
-
   --qr-height: 260px;
 
-  /* Paleta banners (translúcidos/sem borda) */
   --ok-bg-rgb:   34,197,94;
   --warn-bg-rgb: 251,191,36;
   --err-bg-rgb:  239,68,68;
@@ -54,7 +51,6 @@ body{
   background:#E8E6E6;margin:0;color:#111;
   -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
 
-  /* Ancoragem estável para não “descer” ao virar */
   min-height:100dvh;
   display:flex;align-items:flex-start;justify-content:center;
   padding:12px;
@@ -68,12 +64,12 @@ body{
   height:calc(var(--card-h)*var(--preview-scale));
   margin:0 auto;position:relative;perspective:1200px;
   transition:width .2s ease,height .2s ease;
-  overflow:hidden;                    /* impede “descer” */
-  contain:layout paint size;          /* evita empurrões */
+  overflow:hidden;
+  contain:layout paint size;
 }
 .card-3d{position:absolute;inset:0;transform-style:preserve-3d;will-change:transform}
 
-/* === Frente/Verso empilhados (o verso não some) === */
+/* Frente/Verso */
 .card,.back{
   position:absolute; inset:0;
   width:var(--card-w);height:var(--card-h);transform-origin:top left;
@@ -85,36 +81,15 @@ body{
   will-change: transform, opacity;
   z-index:1;
 }
-.back{
-  transform:translateZ(0) scale(var(--preview-scale)) rotateY(180deg);
-  opacity:0; z-index:1;
-  display:grid; /* mantém layout do verso */
-}
-.card-3d.is-back .card{
-  opacity:0; pointer-events:none;
-  transform:translateZ(0) scale(var(--preview-scale)) rotateY(180deg);
-  z-index:1;
-}
-.card-3d.is-back .back{
-  opacity:1;
-  transform:translateZ(0) scale(var(--preview-scale)) rotateY(0deg);
-  z-index:2;
-}
+.back{ transform:translateZ(0) scale(var(--preview-scale)) rotateY(180deg); opacity:0; z-index:1; display:grid; }
+.card-3d.is-back .card{ opacity:0; pointer-events:none; transform:translateZ(0) scale(var(--preview-scale)) rotateY(180deg); z-index:1; }
+.card-3d.is-back .back{ opacity:1; transform:translateZ(0) scale(var(--preview-scale)) rotateY(0deg); z-index:2; }
 
-/* Fundo sempre no nível mais baixo */
-.bg-layer{
-  position:absolute;inset:0;background-size:cover;background-position:center;border-radius:28px;
-  z-index:0;               /* <- antes era 1 */
-  pointer-events:none;     /* não bloqueia cliques */
-}
+/* Fundo */
+.bg-layer{ position:absolute; inset:0; background-size:cover;background-position:center; border-radius:28px; z-index:0; pointer-events:none; }
 
-/* Todo o conteúdo acima do fundo */
-.card > *:not(.bg-layer),
-.back > *:not(.bg-layer){
-  position:relative;
-  z-index:2;
-}
-/* QR pode ficar um nível acima se quiser garantir */
+/* Conteúdo acima do fundo */
+.card > *:not(.bg-layer), .back > *:not(.bg-layer){ position:relative; z-index:2; }
 .qr-section{ margin-top: 12px;margin-bottom: 54px;z-index:3; }
 
 .brand-row{display:flex;justify-content:center;align-items:center;min-height:80px}
@@ -126,7 +101,7 @@ body{
 .name{font-size:clamp(20px,3.4vw,44px);font-weight:700;margin:12px 0 0;line-height:1.05;text-shadow:0 1px 4px rgba(0,0,0,.35)}
 .name .name-2{display:block;opacity:.98}
 
-/* Código (memberId) — texto simples sob o nome */
+/* Código (memberId) */
 .code{
   font-size:clamp(10px,1.8vw,14px);
   margin:6px 0 0; padding:0;
@@ -136,16 +111,7 @@ body{
 }
 
 .qr-section{z-index:3;display:grid;place-items:center;padding:8px 4px;margin-top:-20px;margin-bottom:54px}
-.qr{
-  display:inline-grid;
-  background:#fff;
-  border-radius:16px;
-  padding:10px;
-  width:auto;
-  justify-items:center;
-  align-items:center;
-  line-height:0;
-}
+.qr{ display:inline-grid;background:#fff;border-radius:16px;padding:10px;width:auto;justify-items:center;align-items:center;line-height:0; }
 .qr img, .qr canvas{ display:block; }
 
 /* Código de barras vertical */
@@ -159,36 +125,17 @@ body{
 
 /* FABs */
 .fab{
-  position:absolute;
-  right:18px;
-  left:auto;
-  bottom:18px;
-  z-index:10;
-  width:var(--fab-size);
-  height:var(--fab-size);
-  border-radius:999px;
-  border:0;
-  cursor:pointer;
-  background:rgba(255,255,255,.92);
-  color:#111;
-  display:grid;
-  place-items:center;
-  box-shadow:0 8px 24px rgba(0,0,0,.25);
-  transition:transform .15s ease,opacity .15s ease,background .2s;
-  touch-action: manipulation;
+  position:absolute; right:18px; left:auto; bottom:18px; z-index:10;
+  width:var(--fab-size); height:var(--fab-size); border-radius:999px; border:0; cursor:pointer;
+  background:rgba(255,255,255,.92); color:#111; display:grid; place-items:center;
+  box-shadow:0 8px 24px rgba(0,0,0,.25); transition:transform .15s ease,opacity .15s ease,background .2s; touch-action: manipulation;
 }
-/* Apenas o botão da frente */
-#cardFront .fab{
-  right:auto;
-  left:500px;
-  top:750px;
-  bottom:auto;
-}
+#cardFront .fab{ right:auto; left:500px; top:750px; bottom:auto; }
 .fab:hover{transform:translateY(-1px)}
 .fab svg{width:32px;height:32px;display:block}
-.fab.secondary{right:18px;left: auto;bottom: 18px;background:rgba(255,255,255,.92)}
+.fab.secondary{right:18px;left:auto;bottom:18px;background:rgba(255,255,255,.92)}
 
-/* Verso com rolagem interna e barra oculta */
+/* Verso com rolagem */
 .back .content-scroll{
   z-index:2;position:relative;overflow:auto;
   padding:16px;height:100%;
@@ -219,7 +166,7 @@ body{
 .badge-msg{min-height:20px;text-align:center;font-weight:600;color:#e5e7eb}
 .badge-msg.error{color:#fecaca}
 
-/* Leitor: tamanho final padronizado (vídeo também) */
+/* Leitor: tamanho final padronizado */
 #reader{
   width:100%; height:var(--qr-height);
   border-radius:16px; background:rgba(255,255,255,.08);
@@ -228,22 +175,11 @@ body{
 
 /* -------- BANNERS -------- */
 .pwa-banner{
-  position:fixed;
-  left:50%;
-  transform:translateX(-50%) translateY(-12px);
-  top:12px;
-  z-index:9998;
-  width:calc(var(--card-w) * var(--preview-scale));
-  max-width:none;
-  border-radius:14px;
-  padding:12px 14px;
-  box-shadow:0 20px 60px rgba(0,0,0,.22);
-  display:none;
-  opacity:0;
-  transition:opacity .25s ease, transform .25s ease;
-  font:14px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Arial;
-  background:rgba(var(--info-bg-rgb), .28);
-  backdrop-filter:blur(4px);
+  position:fixed; left:50%; transform:translateX(-50%) translateY(-12px); top:12px; z-index:9998;
+  width:calc(var(--card-w) * var(--preview-scale)); max-width:none;
+  border-radius:14px; padding:12px 14px; box-shadow:0 20px 60px rgba(0,0,0,.22);
+  display:none; opacity:0; transition:opacity .25s ease, transform .25s ease;
+  font:14px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Arial; background:rgba(var(--info-bg-rgb), .28); backdrop-filter:blur(4px);
   font-size: clamp(12px, 2.6vw, 16px);
 }
 .pwa-banner.show{ display:block; opacity:1; transform:translateX(-50%) translateY(0); }
@@ -264,29 +200,14 @@ body{
 .pwa-banner.info .dot{background:rgba(var(--info-bg-rgb), .95)}
 
 .pwa-banner .inline-form{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
-.pwa-banner input[type="text"]{
-  padding:8px 10px;border-radius:10px;border:0;
-  background:rgba(255,255,255,.12);color:inherit;min-width:200px;outline:none
-}
+.pwa-banner input[type="text"]{ padding:8px 10px;border-radius:10px;border:0;background:rgba(255,255,255,.12);color:inherit;min-width:200px;outline:none }
 
 /* Install banner translúcido */
 .pwa-install-banner{
-  position:fixed;
-  left:50%;
-  transform:translateX(-50%);
-  bottom:16px;
-  z-index:9997;
-  width:calc(var(--card-w) * var(--preview-scale));
-  max-width:none;
-  background:rgba(var(--info-bg-rgb), .36);
-  color:#e7f0ff;
-  padding:12px 14px;
-  border-radius:14px;
-  box-shadow:0 20px 60px rgba(0,0,0,.22);
-  display:none;
-  opacity:0;
-  transition:opacity .25s ease, transform .25s ease;
-  backdrop-filter:blur(4px);
+  position:fixed; left:50%; transform:translateX(-50%); bottom:16px; z-index:9997;
+  width:calc(var(--card-w) * var(--preview-scale)); max-width:none;
+  background:rgba(var(--info-bg-rgb), .36); color:#e7f0ff; padding:12px 14px;
+  border-radius:14px; box-shadow:0 20px 60px rgba(0,0,0,.22); display:none; opacity:0; transition:opacity .25s ease, transform .25s ease; backdrop-filter:blur(4px);
   font-size: clamp(12px, 2.6vw, 16px);
 }
 .pwa-install-banner.show{display:block;opacity:1}
@@ -308,24 +229,23 @@ body{
 .proc-queued{background:#dbeafe;border:1px solid #3b82f6}
 .proc-error{background:#fecaca;border:1px solid #ef4444}
 
-/* Loader overlay (atualizado) */
+/* Loader overlay (com logo) */
 .loader{
-  position:fixed; inset:0;
-  background:linear-gradient(180deg,#0f0f10,#1b1b1c);
-  display:flex; flex-direction:column; gap:16px;       /* atualizado */
-  align-items:center; justify-content:center; color:#fff;
-  z-index:100000
+  position:fixed; inset:0; background:linear-gradient(180deg,#0f0f10,#1b1b1c);
+  display:flex; flex-direction:column; gap:16px; align-items:center; justify-content:center; color:#fff; z-index:100000
 }
-.loader-logo{
-  width:min(120px,28vw); height:auto;
-  image-rendering:-webkit-optimize-contrast;
-  image-rendering:crisp-edges;
-  filter:drop-shadow(0 6px 24px rgba(0,0,0,.35));
-}
+.loader-logo{ width:min(120px,28vw); height:auto; image-rendering:-webkit-optimize-contrast; image-rendering:crisp-edges; filter:drop-shadow(0 6px 24px rgba(0,0,0,.35)); }
 .loader .dot{width:10px;height:10px;border-radius:50%;background:#fff;opacity:.85;animation:bounce .9s infinite alternate}
 .loader .dot:nth-child(2){margin:0 10px;animation-delay:.15s}
 .loader .dot:nth-child(3){animation-delay:.3s}
 @keyframes bounce{to{transform:translateY(-8px);opacity:1}}
+
+/* === FIX DA TABELA DE PENDÊNCIAS === */
+#lista-pendentes .table-scroll{ max-height:170px; overflow:auto; overflow-x:hidden; }
+#lista-pendentes table{ width:100%; border-collapse:collapse; table-layout:fixed; }
+#lista-pendentes thead th{ position:sticky; top:0; background:rgba(0,0,0,.35); z-index:1; }
+#lista-pendentes th, #lista-pendentes td{ padding:8px; }
+#lista-pendentes td{ word-break:break-word; }
 
 @media (max-width:1200px){ :root{ --preview-scale: .34 } }
 @media (max-width:920px){  :root{ --preview-scale: .30 } }
@@ -336,7 +256,7 @@ body{
   </style>
 </head>
 <body>
-  <!-- LOADING (atualizado com logo) -->
+  <!-- LOADING -->
   <div id="loader" class="loader" aria-live="polite" aria-busy="true">
     <img class="loader-logo" src="/icon-512.png" alt="Crachá Digital">
     <div class="dot"></div><div class="dot"></div><div class="dot"></div>
@@ -422,17 +342,26 @@ body{
               <div id="lista-pendentes">
                 <h3 style="margin:2px 0 6px">Registros pendentes de envio</h3>
                 <div class="table-scroll" style="border:1px solid rgba(255,255,255,.25);border-radius:14px;overflow:hidden;background:rgba(0,0,0,.15)">
-                  <table style="width:100%;border-collapse:collapse;color:#fff">
+                  <table>
+                    <!-- fixa larguras das colunas para não “empurrar” o verso -->
+                    <colgroup>
+                      <col style="width:28%">
+                      <col style="width:22%">
+                      <col style="width:18%">
+                      <col style="width:22%">
+                      <col style="width:10%">
+                    </colgroup>
                     <thead>
                       <tr>
-                        <th style="width:28%;padding:8px;background:rgba(0,0,0,.35);position:sticky;top:0">Data/Hora</th>
-                        <th style="width:22%;padding:8px;background:rgba(0,0,0,.35);position:sticky;top:0">Nome</th>
-                        <th style="width:18%;padding:8px;background:rgba(0,0,0,.35);position:sticky;top:0">Código</th>
-                        <th style="width:22%;padding:8px;background:rgba(0,0,0,.35);position:sticky;top:0">Evento</th>
-                        <th style="width:10%;padding:8px;background:rgba(0,0,0,.35);position:sticky;top:0">Status</th>
+                        <th>Data/Hora</th>
+                        <th>Nome</th>
+                        <th>Código</th>
+                        <th>Evento</th>
+                        <th>Status</th>
                       </tr>
                     </thead>
-                    <tbody id="tabela-pendentes" style="display:block;max-height:170px;overflow:auto"></tbody>
+                    <!-- REMOVIDO: display:block aqui quebrava o alinhamento -->
+                    <tbody id="tabela-pendentes"></tbody>
                   </table>
                 </div>
               </div>
@@ -492,7 +421,7 @@ body{
 
   <audio id="bip" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
 
-  <!-- App (toda a lógica fica aqui) -->
+  <!-- App -->
   <script src="/app.js" defer></script>
 </body>
 </html>
