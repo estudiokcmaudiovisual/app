@@ -308,25 +308,37 @@ body{
 .proc-queued{background:#dbeafe;border:1px solid #3b82f6}
 .proc-error{background:#fecaca;border:1px solid #ef4444}
 
-    /* Loader overlay */
-    .loader{position:fixed;inset:0;background:linear-gradient(180deg,#0f0f10,#1b1b1c);
-      display:flex;align-items:center;justify-content:center;color:#fff;z-index:100000}
-    .loader .dot{width:10px;height:10px;border-radius:50%;background:#fff;opacity:.85;animation:bounce .9s infinite alternate}
-    .loader .dot:nth-child(2){margin:0 10px;animation-delay:.15s}
-    .loader .dot:nth-child(3){animation-delay:.3s}
-    @keyframes bounce{to{transform:translateY(-8px);opacity:1}}
+/* Loader overlay (atualizado) */
+.loader{
+  position:fixed; inset:0;
+  background:linear-gradient(180deg,#0f0f10,#1b1b1c);
+  display:flex; flex-direction:column; gap:16px;       /* atualizado */
+  align-items:center; justify-content:center; color:#fff;
+  z-index:100000
+}
+.loader-logo{
+  width:min(120px,28vw); height:auto;
+  image-rendering:-webkit-optimize-contrast;
+  image-rendering:crisp-edges;
+  filter:drop-shadow(0 6px 24px rgba(0,0,0,.35));
+}
+.loader .dot{width:10px;height:10px;border-radius:50%;background:#fff;opacity:.85;animation:bounce .9s infinite alternate}
+.loader .dot:nth-child(2){margin:0 10px;animation-delay:.15s}
+.loader .dot:nth-child(3){animation-delay:.3s}
+@keyframes bounce{to{transform:translateY(-8px);opacity:1}}
 
-    @media (max-width:1200px){ :root{ --preview-scale: .34 } }
-    @media (max-width:920px){  :root{ --preview-scale: .30 } }
-    @media (max-width:720px){  :root{ --preview-scale: .26 } }
-    @media (max-width:600px){  :root{ --preview-scale: .22 } }
-    @media (max-width:480px){  :root{ --preview-scale: .195 } }
-    @media (max-width:400px){  :root{ --preview-scale: .175 } }
+@media (max-width:1200px){ :root{ --preview-scale: .34 } }
+@media (max-width:920px){  :root{ --preview-scale: .30 } }
+@media (max-width:720px){  :root{ --preview-scale: .26 } }
+@media (max-width:600px){  :root{ --preview-scale: .22 } }
+@media (max-width:480px){  :root{ --preview-scale: .195 } }
+@media (max-width:400px){  :root{ --preview-scale: .175 } }
   </style>
 </head>
 <body>
-  <!-- LOADING -->
+  <!-- LOADING (atualizado com logo) -->
   <div id="loader" class="loader" aria-live="polite" aria-busy="true">
+    <img class="loader-logo" src="/icon-512.png" alt="Crachá Digital">
     <div class="dot"></div><div class="dot"></div><div class="dot"></div>
   </div>
 
