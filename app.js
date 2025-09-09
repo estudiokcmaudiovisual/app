@@ -12,14 +12,24 @@
     (typeof CSS !== 'undefined' && typeof CSS.supports === 'function' &&
      CSS.supports('transform-style','preserve-3d')) ? true : false;
 
-  // Dados visuais opcionais (se quiser usar imagens em Base64)
-  const BG_BASE64 = "";
-  const LOGO_MAIN_BASE64   = "";
-  const LOGO_FOOTER1_BASE64= "";
-  const LOGO_FOOTER2_BASE64= "";
+  // Dados visuais opcionais (aceita Base64 puro ou data:)
+  const BG_BASE64 = "";                 // ex.: "data:image/jpeg;base64,AAA..." ou "AAA..."
+  const LOGO_MAIN_BASE64    = "";       // idem
+  const LOGO_FOOTER1_BASE64 = "";       // idem
+  const LOGO_FOOTER2_BASE64 = "";       // idem
 
   // Estado do crachá (frente)
   const currentData = { name:'', code:'', photoUrl:'' };
+
+  // ==== utils ====
+  function toDataUrlIfNeeded(src, mime='image/png') {
+    if (!src) return '';
+    if (/^data:/.test(src)) return src;
+    const trimmed = String(src).replace(/\s+/g,'');
+    // heurística simples para base64 "cru"
+    if (/^[A-Za-z0-9+/=]+$/.test(trimmed)) return `data:${mime};base64,${trimmed}`;
+    return src;
+  }
 
   // ==== helpers de protocolo/código de barras/QR ====
   function sanitizeForBarcode(s){
@@ -144,7 +154,7 @@
         const bip = document.getElementById('bip');
         if (eventoInput) eventoInput.value = `${data.nome} - ${data.codigo}`;
         eventoValido = true;
-        if (bip) bip.play();
+        if (bip) { try { bip.play(); } catch {} }
         mostrarMensagem("Evento lido com sucesso!", false);
       }else{
         mostrarMensagem('QR inválido. Esperado {"nome":"...","codigo":"..."}', true);
@@ -286,18 +296,24 @@
     if (d.type === 'badgeData') {
       setBadgeData(d.name, d.code, d.photoUrl);
     }
-    // (Se tiver outra tela/lista que processe presenceQuery, trate aqui também)
   });
 
   // ======== Inicialização / Listeners ========
   document.addEventListener('DOMContentLoaded', () => {
     if (!supports3D) document.body.classList.add('no-3d');
 
+    // BG e logos aceitando base64 cru
     const bgEl = document.getElementById('bg');
-    if (bgEl && BG_BASE64.startsWith('data:')) bgEl.style.backgroundImage = `url('${BG_BASE64}')`;
-    if (LOGO_MAIN_BASE64)   { const el = document.getElementById('logoMain'); if (el) el.src = LOGO_MAIN_BASE64; }
-    if (LOGO_FOOTER1_BASE64){ const el = document.getElementById('foot1');    if (el) el.src = LOGO_FOOTER1_BASE64; }
-    if (LOGO_FOOTER2_BASE64){ const el = document.getElementById('foot2');    if (el) el.src = LOGO_FOOTER2_BASE64; }
+    if (bgEl && BG_BASE64) bgEl.style.backgroundImage = `url('${toDataUrlIfNeeded(BG_BASE64,'image/jpeg')}')`;
+
+    const lm = document.getElementById('logoMain');
+    if (lm && LOGO_MAIN_BASE64) lm.src = toDataUrlIfNeeded(LOGO_MAIN_BASE64);
+
+    const lf1 = document.getElementById('foot1');
+    if (lf1 && LOGO_FOOTER1_BASE64) lf1.src = toDataUrlIfNeeded(LOGO_FOOTER1_BASE64);
+
+    const lf2 = document.getElementById('foot2');
+    if (lf2 && LOGO_FOOTER2_BASE64) lf2.src = toDataUrlIfNeeded(LOGO_FOOTER2_BASE64);
 
     renderAll();
 
@@ -374,6 +390,14 @@
     const resetBtn = document.getElementById('resetApp');
     if (resetBtn) resetBtn.addEventListener('click', handleResetClick);
 
+    // Botão "Sincronizar" (se existir na página)
+    const syncBtn = document.getElementById('syncNowBtn');
+    if (syncBtn) {
+      syncBtn.addEventListener('click', () => {
+        if (navigator.onLine) tentarEnviarFila();
+      });
+    }
+
     // Status online/offline
     setStatusOfflineUI();
     window.addEventListener('online', ()=>{ setStatusOfflineUI(); tentarEnviarFila(); });
@@ -410,7 +434,7 @@
           try{
             await enviarRegistro(registro);
             mostrarMensagem("Presença registrada com sucesso!", false);
-            if (bip) bip.play();
+            if (bip) { try { bip.play(); } catch {} }
           }catch(e){
             salvaOffline(registro);
             mostrarMensagem("Sem conexão estável. Registro salvo e será enviado automaticamente.", true);
@@ -440,7 +464,8 @@
 
     window.addEventListener('load', async () => {
       try {
-        const reg = await navigator.serviceWorker.register('./sw.js');
+        // escopo raiz para cobrir / e start_url do manifest
+        const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
 
         reg.addEventListener('updatefound', () => {
           const newWorker = reg.installing;
@@ -448,6 +473,7 @@
 
           newWorker.addEventListener('statechange', () => {
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              // pede para ativar imediatamente a nova versão
               newWorker.postMessage({ type: 'SKIP_WAITING' });
             }
           });
