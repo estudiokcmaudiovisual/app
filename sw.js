@@ -1,5 +1,5 @@
 /* sw.js — Service Worker do Crachá Digital */
-const SW_VERSION = '2025.09.09-1';
+const SW_VERSION = '2025.09.09-2';
 
 /* Nomes de caches */
 const PRECACHE = `precache-${SW_VERSION}`;
@@ -24,17 +24,17 @@ const APP_SHELL = [
   '/vendor/jspdf.umd.min.js',
   '/vendor/JsBarcode.all.min.js',
 
-  // Ícones / imagens locais (se existirem)
+  // Ícones / imagens locais (na RAIZ, conforme seus arquivos existentes)
   '/apple-touch-icon.png',
-  '/icons/icon-192.png',
-  '/icons/icon-512.png',
-  '/icons/maskable-192.png',
-  '/icons/maskable-512.png',
+  '/icon-192.png',
+  '/icon-512.png',
+
+  // Outras imagens locais usadas na UI (se existir)
   '/logo-evento.png',
 ];
 
 /* Util: network first com fallback e timeout (para navegação) */
-async function networkFirstWithFallback(event, fallbackUrl = '/index.html', timeoutMs = 4000) {
+async function networkFirstWithFallback(event, fallbackUrl = '/index.html', timeoutMs = 5000) {
   const cache = await caches.open(HTML_CACHE);
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), timeoutMs);
