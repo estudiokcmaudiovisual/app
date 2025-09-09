@@ -683,8 +683,13 @@
   });
 
   /* ========= BOOTSTRAP ========= */
+  function showLoader(){ const l=document.getElementById('loader'); if(l){ l.classList.add('show'); } }
   function hideLoader(){ const l=document.getElementById('loader'); if(l){ l.style.opacity='0'; l.style.transition='opacity .25s'; setTimeout(()=>l.remove(),250); } }
+
   async function bootstrap(){
+    // exibe o loader suavemente (para ver as 3 bolinhas HORIZONTAIS)
+    setTimeout(showLoader, 200);
+
     if (!supports3D) document.body.classList.add('no-3d');
     setBgImageById('bg', CONFIG.BG_BASE64);
     setBgImageById('bgBack', CONFIG.BG_BACK_BASE64);
@@ -695,7 +700,10 @@
     renderAll();
     fitPreviewToContainer();
     setStatusOfflineUI();
-    setTimeout(hideLoader, 250);
+
+    // dá tempo do loader aparecer antes de sumir
+    setTimeout(hideLoader, 650);
+
     if (typeof window.updateSyncStatus === 'function') window.updateSyncStatus();
 
     // Eventos de UI (flip, formulário, campo evento bloqueado)
