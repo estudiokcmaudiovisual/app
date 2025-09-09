@@ -47,7 +47,7 @@
     return `${escHtml(first)}<br><span class="name-2">${escHtml(rest)}</span>`;
   }
 
-  // UUID v4 para clientKey
+  // UUID v4 (clientKey)
   function uuidv4(){
     if (typeof crypto!=='undefined' && crypto.randomUUID) return crypto.randomUUID();
     const a=new Uint8Array(16);
@@ -57,6 +57,15 @@
     const b=[...a].map((v,i)=>v.toString(16).padStart(2,'0')).join('');
     return `${b.slice(0,8)}-${b.slice(8,12)}-${b.slice(12,16)}-${b.slice(16,20)}-${b.slice(20)}`;
   }
+  // Id do dispositivo (persistente) e nonce por registro (idempotência)
+  function getClientId(){
+    try{
+      let id = localStorage.getItem('pwa:clientId');
+      if (!id) { id = (self.crypto?.randomUUID?.() || ('c-'+Math.random().toString(36).slice(2)+Date.now())); localStorage.setItem('pwa:clientId', id); }
+      return id;
+    }catch{ return 'c-'+Date.now(); }
+  }
+  function genNonce(){ return (self.crypto?.randomUUID?.() || (Date.now().toString(36)+'-'+Math.random().toString(36).slice(2))); }
 
   const isDataUrl=s=>/^data:image\/[a-zA-Z0-9.+-]+;base64,/.test(s||'');
   const isHttp=s=>/^(https?:)?\/\//.test(s||'');
@@ -362,9 +371,27 @@
     const DB_NAME = 'cracha-db'; const STORE = 'presenceQueue';
     const DB_VERSION = 4; // v4: índice clientKey
 
-    // lock para evitar flush concorrente
+    // ---- Idempotência adicional (nonce enviado com sucesso) ----
+    function loadSentSet(){ try{ return new Set(JSON.parse(localStorage.getItem('pwa:sentNonces')||'[]')); }catch{ return new Set(); } }
+    function saveSentSet(set){
+      try{
+        const arr = [...set];
+        if (arr.length > 600) arr.splice(0, arr.length - 600);
+        localStorage.setItem('pwa:sentNonces', JSON.stringify(arr));
+      }catch{}
+    }
+    let sentNonces = loadSentSet();
+
+    // lock para evitar flush concorrente (local + entre abas)
     let flushing = false;
     let flushPromise = null;
+    const inFlight = new Set();
+    async function withExclusiveLock(fn){
+      if (navigator.locks?.request) {
+        return navigator.locks.request('presence-flush', {mode:'exclusive'}, fn);
+      }
+      return fn();
+    }
 
     function withDB(cb){
       return new Promise((resolve,reject)=>{
@@ -379,7 +406,6 @@
           }
           try{
             if (!store.indexNames.contains('clientKey')) {
-              // indexa o campo aninhado payload.clientKey
               store.createIndex('clientKey', 'payload.clientKey', { unique: true });
             }
           }catch(_){}
@@ -401,7 +427,8 @@
     }
 
     async function enqueue(payload){
-      // evita duplicar na fila pelo mesmo clientKey
+      // evita duplicar na fila pelo mesmo clientKey ou por nonce já enviado
+      if (payload?.nonce && sentNonces.has(payload.nonce)) return;
       const key = payload && payload.clientKey;
       if (key && await hasClientKey(key)) return;
 
@@ -447,36 +474,56 @@
     }
 
     async function flushPresenceQueue(){
-      if (flushing) return flushPromise;             // evita flush concorrente
+      if (flushing) return flushPromise;             // evita flush concorrente local
       if (!navigator.onLine) return;
 
       flushing = true;
-      flushPromise = (async ()=> {
+      flushPromise = withExclusiveLock(async ()=> {
         const q = await allQueue();
         if(!q.length) return;
 
         for (const it of q){
+          const { id, payload } = it;
+
+          // já enviado anteriormente
+          if (payload?.nonce && sentNonces.has(payload.nonce)) { await removeId(id); continue; }
+
+          // evita reenvio no mesmo ciclo
+          if (inFlight.has(id)) continue;
+          inFlight.add(id);
+
           try{
-            await postForm(ENDPOINT, it.payload);
-            await removeId(it.id);
-            dispatchEvent(new CustomEvent('presence:sent', { detail: { id: it.id, payload: it.payload } }));
+            await postForm(ENDPOINT, payload);
+            if (payload?.nonce){ sentNonces.add(payload.nonce); saveSentSet(sentNonces); }
+            await removeId(id);
+            dispatchEvent(new CustomEvent('presence:sent', { detail: { id, payload } }));
           } catch(e){
-            // mantém na fila; segue para o próximo para não travar o lote
+            // mantém na fila
+          } finally {
+            inFlight.delete(id);
           }
         }
         renderPending();
-      })().finally(()=>{ flushing=false; flushPromise=null; });
+      }).finally(()=>{ flushing=false; flushPromise=null; });
 
       return flushPromise;
     }
 
     async function registerPresence(payload){
-      // enriquece com clientKey (dedupe) + metadados
-      const enriched = { ...payload, ua:navigator.userAgent, ts:Date.now(), clientKey: uuidv4() };
+      // enriquece com idempotência + metadados
+      const enriched = {
+        ...payload,
+        ua: navigator.userAgent,
+        ts: Date.now(),
+        clientId: getClientId(),
+        nonce: genNonce(),       // idempotência do registro
+        clientKey: uuidv4()      // unicidade dentro da fila
+      };
 
       if(navigator.onLine){
         try{
           await postForm(ENDPOINT, enriched);
+          if (enriched.nonce){ sentNonces.add(enriched.nonce); saveSentSet(sentNonces); }
           window.PWA_TOAST && PWA_TOAST.show({ title:'Presença', text:'Registro enviado com sucesso.', kind:'success' });
           flushPresenceQueue().catch(()=>{});
           dispatchEvent(new CustomEvent('presence:sent-now', { detail: { payload: enriched } }));
@@ -811,16 +858,16 @@
         try {
           const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
 
-        reg.addEventListener('updatefound', () => {
-          const newWorker = reg.installing;
-          if (!newWorker) return;
-          newWorker.addEventListener('statechange', () => {
-            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              // peça para ativar imediatamente (não interfere na dedupe)
-              try { newWorker.postMessage({ type: 'SKIP_WAITING' }); } catch {}
-            }
+          reg.addEventListener('updatefound', () => {
+            const newWorker = reg.installing;
+            if (!newWorker) return;
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                // peça para ativar imediatamente (não interfere na dedupe)
+                try { newWorker.postMessage({ type: 'SKIP_WAITING' }); } catch {}
+              }
+            });
           });
-        });
 
           let hasRefreshed = false;
           navigator.serviceWorker.addEventListener('controllerchange', () => {
