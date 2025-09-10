@@ -129,19 +129,25 @@
   window.setBadgeData = setBadgeData;
 
   async function prefillFromCacheThenURL(){
+    // 1) Carrega do "arquivo" local (Cache Storage JSON) → fallback automático ao instalar
     try{ if(typeof window.loadUserProfile==='function'){
       const prof=await window.loadUserProfile();
       if(prof && prof.fullName && prof.memberId){ setBadgeData(prof.fullName,prof.memberId,prof.photoUrl); }
     }}catch{}
+    // 2) Se houver nome manual armazenado, respeita
     try{
       const manual = localStorage.getItem('pwa:manualName');
       if (manual && !currentData.name) setBadgeData(manual, currentData.code, currentData.photoUrl);
     }catch{}
+    // 3) Parâmetros de URL (primeiro acesso), e já persiste o "arquivo" local
     const p=new URLSearchParams(location.search);
     const name=p.get('name')||p.get('nome')||'';
     const code=p.get('code')||p.get('memberid')||p.get('memberId')||p.get('matricula')||'';
-    const photo=p.get('photo')||p.get('foto')||p.get('image')||'';
-    if(name||code||photo) setBadgeData(name,code,photo);
+    const photo=p.get('photo')||p.get('foto')||'';
+    if(name||code||photo){
+      setBadgeData(name,code,photo);
+      try{ await cacheUserProfileSmart({ fullName: name, memberId: code, photo }); }catch{}
+    }
   }
 
   /* ========= QR / CAMERA ========= */
@@ -234,6 +240,7 @@
   /* ========= PROFILE CACHE API ========= */
   async function cacheUserProfile({ fullName, memberId, photoUrl }) {
     if (!fullName || !memberId) { console.warn('[PWA] cacheUserProfile: dados faltando'); return; }
+    // “Arquivo” JSON local no Cache Storage
     const profile = { fullName, memberId, photoLocal: CONFIG.PROFILE_IMG_PATH, ts: Date.now() };
     const profileRes = new Response(JSON.stringify(profile), { headers: { 'Content-Type': 'application/json' } });
 
@@ -339,13 +346,17 @@
       } catch (e) { console.warn('[PWA] ensureProfileFromURL falhou:', e); return false; }
     }
 
-    manualSave?.addEventListener('click', ()=>{
+    manualSave?.addEventListener('click', async ()=>{
       const v = (manualInput?.value||'').trim();
       if (!v || v.length < 3){ msg.textContent = 'Digite um nome válido.'; return; }
       try{ localStorage.setItem('pwa:manualName', v); }catch{}
       const currentCode = (window.currentData && currentData.code) || '';
       setBadgeData(v, currentCode, (window.currentData && currentData.photoUrl) || '');
       const nomeInput = document.getElementById('nome'); if (nomeInput) nomeInput.value = v;
+
+      // também grava o "arquivo" JSON local (fallback robusto)
+      try{ await cacheUserProfileSmart({ fullName: v, memberId: currentCode, photo: (window.currentData && currentData.photoUrl) || '' }); }catch{}
+
       updateSyncStatus();
     });
     btnNow && btnNow.addEventListener('click', async ()=>{
@@ -386,11 +397,29 @@
     let flushing = false;
     let flushPromise = null;
     const inFlight = new Set();
+
+    // ===== NOVO: Fallback de lock cross-tab via localStorage =====
+    const LS_LOCK_KEY = 'pwa:presenceFlushLock_v1';
+    function acquireLsLock(ttlMs = 10000){
+      try{
+        const now = Date.now();
+        const raw = localStorage.getItem(LS_LOCK_KEY);
+        if (raw){
+          const { t } = JSON.parse(raw);
+          if (now - t < ttlMs) return false; // outro flush segurando a trava
+        }
+        localStorage.setItem(LS_LOCK_KEY, JSON.stringify({ t: now }));
+        return true;
+      }catch{ return true; }
+    }
+    function releaseLsLock(){ try{ localStorage.removeItem(LS_LOCK_KEY); }catch{} }
+
     async function withExclusiveLock(fn){
       if (navigator.locks?.request) {
         return navigator.locks.request('presence-flush', {mode:'exclusive'}, fn);
       }
-      return fn();
+      if (!acquireLsLock()) return;
+      try { return await fn(); } finally { releaseLsLock(); }
     }
 
     function withDB(cb){
@@ -473,6 +502,14 @@
       } finally { clearTimeout(t); }
     }
 
+    // ===== NOVO: chave estável do registro (impede duplicata na fila) =====
+    function stableKeyFrom(rec){
+      const norm = s => String(s||'').trim().toLowerCase();
+      const base = [norm(rec.nome), norm(rec.codigo), norm(rec.evento)].join('|');
+      let h = 0; for (let i=0; i<base.length; i++) h = (h*31 + base.charCodeAt(i)) | 0;
+      return 'k' + Math.abs(h);
+    }
+
     async function flushPresenceQueue(){
       if (flushing) return flushPromise;             // evita flush concorrente local
       if (!navigator.onLine) return;
@@ -516,8 +553,8 @@
         ua: navigator.userAgent,
         ts: Date.now(),
         clientId: getClientId(),
-        nonce: genNonce(),       // idempotência do registro
-        clientKey: uuidv4()      // unicidade dentro da fila
+        nonce: genNonce(),                 // idempotência do registro
+        clientKey: stableKeyFrom(payload)  // unicidade dentro da fila (estável)
       };
 
       if(navigator.onLine){
@@ -615,6 +652,7 @@
   window.runDiagnostics = runDiagnostics;
 
   async function resetAppData() {
+    // Mantemos a função, mas não há mais gesto oculto para acioná-la.
     try { await stopQR(); } catch {}
     try { localStorage.clear && localStorage.clear(); } catch {}
     try {
@@ -679,6 +717,8 @@
     const d = event.data || {};
     if (d.type === 'badgeData') {
       setBadgeData(d.name, d.code, d.photoUrl);
+      // sempre que receber dados válidos, persiste também no "arquivo" local
+      if (d.name && d.code) { cacheUserProfileSmart({ fullName: d.name, memberId: d.code, photo: d.photoUrl }).catch(()=>{}); }
     }
   });
 
@@ -700,6 +740,11 @@
     renderAll();
     fitPreviewToContainer();
     setStatusOfflineUI();
+
+    // se já temos dados carregados, garante persistência no "arquivo" local
+    if (currentData.name && currentData.code) {
+      try { await cacheUserProfileSmart({ fullName: currentData.name, memberId: currentData.code, photo: currentData.photoUrl }); } catch {}
+    }
 
     // dá tempo do loader aparecer antes de sumir
     setTimeout(hideLoader, 650);
@@ -772,39 +817,34 @@
         if (eventoInput) eventoInput.value="";
         eventoValido=false;
       } finally {
-        // libera o submit após um pequeno debounce para evitar toques múltiplos
-        setTimeout(()=>{ submitBusy=false; }, 300);
+        // cooldown maior para evitar toques múltiplos
+        setTimeout(()=>{ submitBusy=false; }, 1200);
       }
     });
 
-    // Triple-click reset
-    const crachaEl = document.querySelector('#cracha, #cardFront, .card');
-    if (crachaEl){
-      let clicks = 0, firstTs = 0, TIMER = null, WINDOW_MS = 1200;
-      crachaEl.addEventListener('click', async () => {
-        const now = Date.now();
-        if (!firstTs || now - firstTs > WINDOW_MS) { firstTs = now; clicks = 1; } else { clicks++; }
-        clearTimeout(TIMER); TIMER = setTimeout(() => { clicks = 0; firstTs = 0; }, WINDOW_MS);
-        if (clicks >= 3) {
-          clicks = 0; firstTs = 0; clearTimeout(TIMER);
-          const ok = confirm('Deseja limpar dados do aplicativo? (cache, SW, IndexedDB)');
-          if (!ok) return;
-          await resetAppData();
-        }
-      });
-    }
+    // >>> REMOVIDO: gesto de triplo clique que limpava dados <<<
   }
   document.addEventListener('DOMContentLoaded', bootstrap);
 
   /* ========= GLOBAL LISTENERS ========= */
+
+  // Debounce para qualquer tentativa de flush (online + visibility)
+  let __flushDebTimer;
+  function flushDebounced(){
+    clearTimeout(__flushDebTimer);
+    __flushDebTimer = setTimeout(() => {
+      window.flushPresenceQueue && window.flushPresenceQueue().catch(()=>{});
+    }, 500);
+  }
+
   window.addEventListener('resize',fitPreviewToContainer);
   window.addEventListener('orientationchange',fitPreviewToContainer);
-  window.addEventListener('online', ()=>{ setStatusOfflineUI(); (window.flushPresenceQueue&&flushPresenceQueue().catch(()=>{})); if (window.updateSyncStatus) window.updateSyncStatus(); });
+  window.addEventListener('online', ()=>{ setStatusOfflineUI(); flushDebounced(); if (window.updateSyncStatus) window.updateSyncStatus(); });
   window.addEventListener('offline', ()=>{ setStatusOfflineUI(); if (window.updateSyncStatus) window.updateSyncStatus(); });
 
-  // Sincroniza fila quando volta o foco (com lock no flush)
+  // Sincroniza fila quando volta o foco (com lock no flush) — agora com debounce
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden && navigator.onLine && typeof window.flushPresenceQueue==='function') window.flushPresenceQueue().catch(()=>{});
+    if (!document.hidden && navigator.onLine && typeof window.flushPresenceQueue==='function') flushDebounced();
   });
 
   /* ========= INSTALL BANNER + SW ========= */
@@ -866,7 +906,7 @@
         try {
           const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
 
-          reg.addEventListener('updatefound', () => {
+        reg.addEventListener('updatefound', () => {
             const newWorker = reg.installing;
             if (!newWorker) return;
             newWorker.addEventListener('statechange', () => {
