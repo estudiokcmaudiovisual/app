@@ -535,7 +535,6 @@
     // lock para evitar flush concorrente (local + entre abas)
     let flushing = false;
     let flushPromise = null;
-    const inFlight = new Set();
 
     // Fallback de lock cross-tab via localStorage
     const LS_LOCK_KEY = 'pwa:presenceFlushLock_v1';
@@ -602,7 +601,7 @@
 
       return withDB(db=>new Promise((res,rej)=>{
         const tx=db.transaction(STORE,'readwrite');
-        tx.objectStore(STORE).add({payload, createdAt:Date.now()});
+        tx.objectStore(STORE).add({payload, createdAt:Date.now(), inflight:false, inflightAt:null});
         tx.oncomplete=()=>res();
         tx.onerror   =()=>rej(tx.error);
       })).then(()=>{
@@ -611,16 +610,30 @@
       });
     }
 
-    function allQueue(){
+    function allQueue({ onlyNotInflight=true } = {}){
       return withDB(db=>new Promise((res,rej)=>{
         const out=[]; const tx=db.transaction(STORE,'readonly');
         const cursorReq = tx.objectStore(STORE).openCursor();
-        cursorReq.onsuccess=()=>{ const c=cursorReq.result; if(c){ out.push({id:c.key, ...c.value}); c.continue(); } else res(out); };
+        cursorReq.onsuccess=()=>{
+          const c=cursorReq.result;
+          if(c){
+            const val = c.value || {};
+            if(!onlyNotInflight || !val.inflight){ out.push({id:c.key, ...val}); }
+            c.continue();
+          } else res(out);
+        };
         cursorReq.onerror =()=>rej(cursorReq.error);
       })).catch(async()=>{
         return withDB(db=>new Promise((res,rej)=>{
           const out=[]; const tx=db.transaction(STORE,'readonly'); const req=tx.objectStore(STORE).openCursor();
-          req.onsuccess=()=>{ const c=req.result; if(c){ out.push({id:c.key, ...c.value}); c.continue(); } else res(out); };
+          req.onsuccess=()=>{
+            const c=req.result;
+            if(c){
+              const val = c.value || {};
+              if(!onlyNotInflight || !val.inflight){ out.push({id:c.key, ...val}); }
+              c.continue();
+            } else res(out);
+          };
           req.onerror =()=>rej(req.error);
         }));
       });
@@ -630,6 +643,45 @@
       return withDB(db=>new Promise((res,rej)=>{
         const tx=db.transaction(STORE,'readwrite'); tx.objectStore(STORE).delete(id);
         tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error);
+      }));
+    }
+
+    function updateInflight(id, on){
+      return withDB(db=>new Promise((res,rej)=>{
+        const tx=db.transaction(STORE,'readwrite');
+        const store=tx.objectStore(STORE);
+        const get=store.get(id);
+        get.onsuccess=()=>{
+          const rec=get.result;
+          if(!rec){ res(); return; }
+          rec.inflight=!!on;
+          rec.inflightAt=on?Date.now():null;
+          const put=store.put(rec);
+          put.onsuccess=()=>res();
+          put.onerror =()=>rej(put.error);
+        };
+        get.onerror =()=>rej(get.error);
+      }));
+    }
+
+    function clearStaleInflight(maxAgeMs = 3*60*1000){
+      const now = Date.now();
+      return withDB(db=>new Promise((res,rej)=>{
+        const tx=db.transaction(STORE,'readwrite');
+        const st=tx.objectStore(STORE);
+        const req=st.openCursor();
+        req.onsuccess=()=>{
+          const c=req.result;
+          if(c){
+            const v=c.value||{};
+            if(v.inflight && (!v.inflightAt || (now - v.inflightAt) > maxAgeMs)){
+              v.inflight=false; v.inflightAt=null;
+              c.update(v);
+            }
+            c.continue();
+          } else res();
+        };
+        req.onerror=()=>rej(req.error);
       }));
     }
 
@@ -657,7 +709,8 @@
 
       flushing = true;
       flushPromise = withExclusiveLock(async ()=> {
-        const q = await allQueue();
+        await clearStaleInflight();
+        const q = await allQueue({ onlyNotInflight:true });
         if(!q.length) return;
 
         for (const it of q){
@@ -665,8 +718,12 @@
 
           if (payload?.nonce && sentNonces.has(payload.nonce)) { await removeId(id); continue; }
 
-          if (inFlight.has(id)) continue;
-          inFlight.add(id);
+          try{
+            await updateInflight(id, true);
+          }catch{
+            console.warn('flush skip: inflight', id);
+            continue;
+          }
 
           try{
             await postForm(ENDPOINT, payload);
@@ -674,9 +731,8 @@
             await removeId(id);
             dispatchEvent(new CustomEvent('presence:sent', { detail: { id, payload } }));
           } catch(e){
-            // mantém na fila
-          } finally {
-            inFlight.delete(id);
+            console.warn('flush error', e);
+            try{ await updateInflight(id, false); }catch{}
           }
         }
         renderPending();
