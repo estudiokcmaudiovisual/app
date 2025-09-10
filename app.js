@@ -47,7 +47,7 @@
     return `${escHtml(first)}<br><span class="name-2">${escHtml(rest)}</span>`;
   }
 
-  // UUID v4 (clientKey)
+  // UUID v4 (clientKey) — mantido por compat, mas usamos chave estável para fila
   function uuidv4(){
     if (typeof crypto!=='undefined' && crypto.randomUUID) return crypto.randomUUID();
     const a=new Uint8Array(16);
@@ -57,7 +57,7 @@
     const b=[...a].map((v,i)=>v.toString(16).padStart(2,'0')).join('');
     return `${b.slice(0,8)}-${b.slice(8,12)}-${b.slice(12,16)}-${b.slice(16,20)}-${b.slice(20)}`;
   }
-  // Id do dispositivo (persistente) e nonce por registro (idempotência)
+  // Id do dispositivo (persistente) e nonce por registro (idempotência adicional)
   function getClientId(){
     try{
       let id = localStorage.getItem('pwa:clientId');
@@ -341,7 +341,7 @@
     }catch{}
   }
 
-  // >>> pedir flush ao SW; retorna true se delegou
+  // Pede flush ao SW (se houver) — página segue com fallback local
   function requestSwFlush(){
     try{
       if (navigator.serviceWorker?.controller) {
@@ -359,7 +359,6 @@
     __flushDebTimer = setTimeout(async () => {
       const delegated = requestSwFlush();
       if (delegated) {
-        // Fallback: se em 1500 ms ainda houver pendências, faz flush local
         setTimeout(async () => {
           try{
             if (!navigator.onLine) return;
@@ -369,7 +368,6 @@
         }, 1500);
         return;
       }
-      // Sem SW controlador → flush local
       if (window.flushPresenceQueue) window.flushPresenceQueue().catch(()=>{});
     }, 500);
   }
@@ -426,14 +424,11 @@
       manualWrap.style.display = (kind==='err') ? 'flex' : 'none';
     }
 
-    // >>> Novo: botão “Sincronizar” força envio (SW + fallback local)
     async function manualFlushNow(){
       try{
         window.PROC && PROC.pending('Sincronizando registros…');
         const delegated = requestSwFlush();
-        // pequena espera para o SW iniciar
         await new Promise(r => setTimeout(r, 300));
-        // fallback imediato se ainda houver pendências
         if (await (window.presenceQueueAPI?.hasPending?.() || Promise.resolve(false))){
           if (window.flushPresenceQueue) await window.flushPresenceQueue();
         }
@@ -445,9 +440,7 @@
       }
     }
 
-    // >>> Atualizado: status dá prioridade a pendências
     async function updateSyncStatus(){
-      // 1) Checa pendências primeiro
       let pendingCount = 0;
       try{
         const list = await (window.presenceQueueAPI?.all?.() || Promise.resolve([]));
@@ -460,10 +453,9 @@
         }else{
           setBanner('warn', `${pendingCount} registro(s) salvo(s) offline. Enviaremos quando a internet voltar.`);
         }
-        return; // prioridade máxima para pendências
+        return;
       }
 
-      // 2) Sem pendências → volta a exibir estado do perfil/config
       const { nome, codigo } = readCurrentFields();
       if (nome && codigo){ setBanner('ok', 'Seus dados foram carregados. Tudo certo!'); return; }
       if (nome || codigo){ setBanner('warn', 'Dados parciais encontrados. Aguarde a sincronização automática…'); return; }
@@ -502,7 +494,6 @@
     window.updateSyncStatus = updateSyncStatus;
     window.ensureProfileFromURL = ensureProfileFromURL;
 
-    // Atualiza o banner com eventos da fila também
     addEventListener('presence:queued', updateSyncStatus);
     addEventListener('presence:sent', updateSyncStatus);
     addEventListener('presence:sent-now', updateSyncStatus);
@@ -521,7 +512,7 @@
     const DB_NAME = 'cracha-db'; const STORE = 'presenceQueue';
     const DB_VERSION = 4; // v4: índice clientKey
 
-    // ---- Idempotência adicional (nonce enviado com sucesso) ----
+    // ---- Idempotência adicional (nonces enviados com sucesso) ----
     function loadSentSet(){ try{ return new Set(JSON.parse(localStorage.getItem('pwa:sentNonces')||'[]')); }catch{ return new Set(); } }
     function saveSentSet(set){
       try{
@@ -532,7 +523,7 @@
     }
     let sentNonces = loadSentSet();
 
-    // lock para evitar flush concorrente (local + entre abas)
+    // lock local (mesmo contexto)
     let flushing = false;
     let flushPromise = null;
     const inFlight = new Set();
@@ -602,7 +593,7 @@
 
       return withDB(db=>new Promise((res,rej)=>{
         const tx=db.transaction(STORE,'readwrite');
-        tx.objectStore(STORE).add({payload, createdAt:Date.now()});
+        tx.objectStore(STORE).add({payload, createdAt:Date.now(), lockedUntil:0});
         tx.oncomplete=()=>res();
         tx.onerror   =()=>rej(tx.error);
       })).then(()=>{
@@ -633,6 +624,42 @@
       }));
     }
 
+    // ==== NOVO: lock por item no IndexedDB (bloqueia duplicidade cross-contexto) ====
+    function acquireItemLock(id, ttlMs = 30000){
+      return withDB(db=>new Promise((res,rej)=>{
+        const tx = db.transaction(STORE,'readwrite');
+        const st = tx.objectStore(STORE);
+        const get = st.get(id);
+        get.onsuccess = ()=>{
+          const rec = get.result;
+          if (!rec){ res(false); return; }
+          const now = Date.now();
+          if (rec.lockedUntil && rec.lockedUntil > now){ res(false); return; }
+          rec.lockedUntil = now + ttlMs;
+          const put = st.put(rec);
+          put.onsuccess = ()=>res(true);
+          put.onerror   = ()=>rej(put.error);
+        };
+        get.onerror = ()=>rej(get.error);
+      }));
+    }
+    function releaseItemLock(id){
+      return withDB(db=>new Promise((res,rej)=>{
+        const tx = db.transaction(STORE,'readwrite');
+        const st = tx.objectStore(STORE);
+        const get = st.get(id);
+        get.onsuccess = ()=>{
+          const rec = get.result;
+          if (!rec){ res(); return; }
+          rec.lockedUntil = 0;
+          const put = st.put(rec);
+          put.onsuccess = ()=>res();
+          put.onerror   = ()=>rej(put.error);
+        };
+        get.onerror = ()=>rej(get.error);
+      })).catch(()=>{});
+    }
+
     async function postForm(url, data, { timeoutMs=15000 }={}){
       const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(), timeoutMs);
       try{
@@ -643,7 +670,7 @@
       } finally { clearTimeout(t); }
     }
 
-    // chave estável do registro (impede duplicata na fila)
+    // chave estável do registro (impede duplicata NA FILA)
     function stableKeyFrom(rec){
       const norm = s => String(s||'').trim().toLowerCase();
       const base = [norm(rec.nome), norm(rec.codigo), norm(rec.evento)].join('|');
@@ -663,18 +690,25 @@
         for (const it of q){
           const { id, payload } = it;
 
+          // já enviado anteriormente (idempotência por nonce)
           if (payload?.nonce && sentNonces.has(payload.nonce)) { await removeId(id); continue; }
 
+          // evita duplicidade no MESMO contexto
           if (inFlight.has(id)) continue;
-          inFlight.add(id);
 
+          // ==== tenta travar o item no IndexedDB (cross-contexto/SW) ====
+          const hasLock = await acquireItemLock(id, 30000);
+          if (!hasLock) continue; // já tem alguém enviando este item
+
+          inFlight.add(id);
           try{
             await postForm(ENDPOINT, payload);
             if (payload?.nonce){ sentNonces.add(payload.nonce); saveSentSet(sentNonces); }
             await removeId(id);
             dispatchEvent(new CustomEvent('presence:sent', { detail: { id, payload } }));
           } catch(e){
-            // mantém na fila
+            // falhou: solta o lock para tentar futuramente
+            await releaseItemLock(id);
           } finally {
             inFlight.delete(id);
           }
@@ -704,7 +738,7 @@
           dispatchEvent(new CustomEvent('presence:sent-now', { detail: { payload: enriched } }));
           return { ok:true, queued:false };
         }catch(e){
-          console.warn('[PWA] Envio online falhou, enfileirando:', e);
+          // falhou online → enfileira
         }
       }
 
@@ -1058,7 +1092,7 @@
             location.reload();
           });
         } catch (e) {
-          // opcional: console.warn('SW register error', e);
+          // opcional
         }
       });
     }
