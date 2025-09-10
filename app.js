@@ -646,45 +646,6 @@
       }));
     }
 
-    function updateInflight(id, on){
-      return withDB(db=>new Promise((res,rej)=>{
-        const tx=db.transaction(STORE,'readwrite');
-        const store=tx.objectStore(STORE);
-        const get=store.get(id);
-        get.onsuccess=()=>{
-          const rec=get.result;
-          if(!rec){ res(); return; }
-          rec.inflight=!!on;
-          rec.inflightAt=on?Date.now():null;
-          const put=store.put(rec);
-          put.onsuccess=()=>res();
-          put.onerror =()=>rej(put.error);
-        };
-        get.onerror =()=>rej(get.error);
-      }));
-    }
-
-    function clearStaleInflight(maxAgeMs = 3*60*1000){
-      const now = Date.now();
-      return withDB(db=>new Promise((res,rej)=>{
-        const tx=db.transaction(STORE,'readwrite');
-        const st=tx.objectStore(STORE);
-        const req=st.openCursor();
-        req.onsuccess=()=>{
-          const c=req.result;
-          if(c){
-            const v=c.value||{};
-            if(v.inflight && (!v.inflightAt || (now - v.inflightAt) > maxAgeMs)){
-              v.inflight=false; v.inflightAt=null;
-              c.update(v);
-            }
-            c.continue();
-          } else res();
-        };
-        req.onerror=()=>rej(req.error);
-      }));
-    }
-
     async function postForm(url, data, { timeoutMs=15000 }={}){
       const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(), timeoutMs);
       try{
