@@ -88,7 +88,7 @@ function allQueue({ onlyNotInflight=true, limit=Infinity } = {}){
   }));
 }
 
-function updateInflight(id, inflight){
+function updateInflight(id, on){
   return withDB(db=>new Promise((res,rej)=>{
     const tx=db.transaction(STORE,'readwrite');
     const store=tx.objectStore(STORE);
@@ -96,8 +96,8 @@ function updateInflight(id, inflight){
     get.onsuccess=()=>{
       const rec = get.result;
       if (!rec){ res(); return; }
-      rec.inflight = !!inflight;
-      rec.inflightAt = inflight ? Date.now() : 0;
+      rec.inflight = !!on;
+      rec.inflightAt = on ? Date.now() : null;
       const put = store.put(rec);
       put.onsuccess=()=>res();
       put.onerror =()=>rej(put.error);
@@ -117,7 +117,7 @@ function clearStaleInflight(maxAgeMs = 3*60*1000){
       if(c){
         const v = c.value || {};
         if (v.inflight && (!v.inflightAt || (now - v.inflightAt) > maxAgeMs)){
-          v.inflight = false; v.inflightAt = 0;
+          v.inflight = false; v.inflightAt = null;
           c.update(v);
         }
         c.continue();
@@ -161,13 +161,16 @@ async function flushPresenceQueueSW(){
       const { id, payload } = it;
       try{
         await updateInflight(id, true);
-      }catch{ /* segue tentando enviar mesmo assim */ }
+      }catch{
+        console.warn('flush skip: inflight', id);
+        continue;
+      }
 
       try{
         await postForm(ENDPOINT, payload);
         await removeId(id);
       }catch(e){
-        // falha de rede: libera para tentar depois
+        console.warn('flush error', e);
         try{ await updateInflight(id, false); }catch{}
       }
     }
