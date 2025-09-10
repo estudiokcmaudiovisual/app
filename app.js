@@ -129,17 +129,14 @@
   window.setBadgeData = setBadgeData;
 
   async function prefillFromCacheThenURL(){
-    // 1) Carrega do "arquivo" local (Cache Storage JSON) → fallback automático ao instalar
     try{ if(typeof window.loadUserProfile==='function'){
       const prof=await window.loadUserProfile();
       if(prof && prof.fullName && prof.memberId){ setBadgeData(prof.fullName,prof.memberId,prof.photoUrl); }
     }}catch{}
-    // 2) Se houver nome manual armazenado, respeita
     try{
       const manual = localStorage.getItem('pwa:manualName');
       if (manual && !currentData.name) setBadgeData(manual, currentData.code, currentData.photoUrl);
     }catch{}
-    // 3) Parâmetros de URL (primeiro acesso), e já persiste o "arquivo" local
     const p=new URLSearchParams(location.search);
     const name=p.get('name')||p.get('nome')||'';
     const code=p.get('code')||p.get('memberid')||p.get('memberId')||p.get('matricula')||'';
@@ -240,7 +237,6 @@
   /* ========= PROFILE CACHE API ========= */
   async function cacheUserProfile({ fullName, memberId, photoUrl }) {
     if (!fullName || !memberId) { console.warn('[PWA] cacheUserProfile: dados faltando'); return; }
-    // “Arquivo” JSON local no Cache Storage
     const profile = { fullName, memberId, photoLocal: CONFIG.PROFILE_IMG_PATH, ts: Date.now() };
     const profileRes = new Response(JSON.stringify(profile), { headers: { 'Content-Type': 'application/json' } });
 
@@ -286,6 +282,48 @@
   window.loadUserProfile  = loadUserProfile;
   window.getLaunchParams  = getLaunchParams;
   window.cacheUserProfileSmart = cacheUserProfileSmart;
+
+  /* ========= BACKGROUND/FOREGROUND FLUSH SUPPORT ========= */
+  // Registra Background Sync (quando disponível) para “segundo plano”
+  function requestBackgroundSync(tag='presence-sync'){
+    if ('serviceWorker' in navigator && 'SyncManager' in window){
+      navigator.serviceWorker.ready
+        .then(reg => reg.sync.register(tag))
+        .catch(()=>{});
+    }
+  }
+  // (Opcional) Periodic Background Sync — nem todos navegadores suportam.
+  async function requestPeriodicSync(){
+    try{
+      if (!('serviceWorker' in navigator)) return;
+      const reg = await navigator.serviceWorker.ready;
+      if (!reg.periodicSync) return;
+      const tags = await reg.periodicSync.getTags();
+      if (!tags.includes('presence-periodic')){
+        await reg.periodicSync.register('presence-periodic', { minInterval: 15 * 60 * 1000 });
+      }
+    }catch{}
+  }
+
+  // Debounce para qualquer tentativa de flush
+  let __flushDebTimer;
+  function flushDebounced(){
+    clearTimeout(__flushDebTimer);
+    __flushDebTimer = setTimeout(() => {
+      window.flushPresenceQueue && window.flushPresenceQueue().catch(()=>{});
+    }, 500);
+  }
+
+  // Batimento: checa conectividade e pendências a cada 10s
+  let __heartbeatTimer = null;
+  function startFlushHeartbeat(){
+    clearInterval(__heartbeatTimer);
+    __heartbeatTimer = setInterval(() => {
+      if (!navigator.onLine) return;
+      flushDebounced();              // foreground (e também quando app está em background mas aberto)
+      requestBackgroundSync();       // redundância: pede sync no SW
+    }, 10_000);
+  }
 
   /* ========= SYNC BANNER ========= */
   (function(){
@@ -353,10 +391,7 @@
       const currentCode = (window.currentData && currentData.code) || '';
       setBadgeData(v, currentCode, (window.currentData && currentData.photoUrl) || '');
       const nomeInput = document.getElementById('nome'); if (nomeInput) nomeInput.value = v;
-
-      // também grava o "arquivo" JSON local (fallback robusto)
       try{ await cacheUserProfileSmart({ fullName: v, memberId: currentCode, photo: (window.currentData && currentData.photoUrl) || '' }); }catch{}
-
       updateSyncStatus();
     });
     btnNow && btnNow.addEventListener('click', async ()=>{
@@ -466,7 +501,11 @@
         tx.objectStore(STORE).add({payload, createdAt:Date.now()});
         tx.oncomplete=()=>res();
         tx.onerror   =()=>rej(tx.error);
-      })).then(()=>{ dispatchEvent(new CustomEvent('presence:queued', { detail: { payload } })); });
+      })).then(()=>{
+        dispatchEvent(new CustomEvent('presence:queued', { detail: { payload } }));
+        // pede Background Sync sempre que enfileirar
+        if (window.requestBackgroundSync) window.requestBackgroundSync('presence-sync');
+      });
     }
 
     function allQueue(){
@@ -476,7 +515,6 @@
         cursorReq.onsuccess=()=>{ const c=cursorReq.result; if(c){ out.push({id:c.key, ...c.value}); c.continue(); } else res(out); };
         cursorReq.onerror =()=>rej(cursorReq.error);
       })).catch(async()=>{
-        // fallback (alguns navegadores antigos)
         return withDB(db=>new Promise((res,rej)=>{
           const out=[]; const tx=db.transaction(STORE,'readonly'); const req=tx.objectStore(STORE).openCursor();
           req.onsuccess=()=>{ const c=req.result; if(c){ out.push({id:c.key, ...c.value}); c.continue(); } else res(out); };
@@ -511,7 +549,7 @@
     }
 
     async function flushPresenceQueue(){
-      if (flushing) return flushPromise;             // evita flush concorrente local
+      if (flushing) return flushPromise;
       if (!navigator.onLine) return;
 
       flushing = true;
@@ -522,10 +560,8 @@
         for (const it of q){
           const { id, payload } = it;
 
-          // já enviado anteriormente
           if (payload?.nonce && sentNonces.has(payload.nonce)) { await removeId(id); continue; }
 
-          // evita reenvio no mesmo ciclo
           if (inFlight.has(id)) continue;
           inFlight.add(id);
 
@@ -547,14 +583,13 @@
     }
 
     async function registerPresence(payload){
-      // enriquece com idempotência + metadados
       const enriched = {
         ...payload,
         ua: navigator.userAgent,
         ts: Date.now(),
         clientId: getClientId(),
-        nonce: genNonce(),                 // idempotência do registro
-        clientKey: stableKeyFrom(payload)  // unicidade dentro da fila (estável)
+        nonce: genNonce(),
+        clientKey: stableKeyFrom(payload)
       };
 
       if(navigator.onLine){
@@ -566,7 +601,6 @@
           dispatchEvent(new CustomEvent('presence:sent-now', { detail: { payload: enriched } }));
           return { ok:true, queued:false };
         }catch(e){
-          // falhou online → segue para fila
           console.warn('[PWA] Envio online falhou, enfileirando:', e);
         }
       }
@@ -600,7 +634,10 @@
 
     window.registerPresence   = registerPresence;
     window.flushPresenceQueue = flushPresenceQueue;
-    window.presenceQueueAPI   = { all: allQueue };
+    window.presenceQueueAPI   = {
+      all: allQueue,
+      hasPending: async () => (await allQueue()).length > 0
+    };
   })();
 
   /* ========= DOWNLOAD (PNG/PDF) ========= */
@@ -717,7 +754,6 @@
     const d = event.data || {};
     if (d.type === 'badgeData') {
       setBadgeData(d.name, d.code, d.photoUrl);
-      // sempre que receber dados válidos, persiste também no "arquivo" local
       if (d.name && d.code) { cacheUserProfileSmart({ fullName: d.name, memberId: d.code, photo: d.photoUrl }).catch(()=>{}); }
     }
   });
@@ -727,7 +763,6 @@
   function hideLoader(){ const l=document.getElementById('loader'); if(l){ l.style.opacity='0'; l.style.transition='opacity .25s'; setTimeout(()=>l.remove(),250); } }
 
   async function bootstrap(){
-    // exibe o loader suavemente (para ver as 3 bolinhas HORIZONTAIS)
     setTimeout(showLoader, 200);
 
     if (!supports3D) document.body.classList.add('no-3d');
@@ -741,12 +776,10 @@
     fitPreviewToContainer();
     setStatusOfflineUI();
 
-    // se já temos dados carregados, garante persistência no "arquivo" local
     if (currentData.name && currentData.code) {
       try { await cacheUserProfileSmart({ fullName: currentData.name, memberId: currentData.code, photo: currentData.photoUrl }); } catch {}
     }
 
-    // dá tempo do loader aparecer antes de sumir
     setTimeout(hideLoader, 650);
 
     if (typeof window.updateSyncStatus === 'function') window.updateSyncStatus();
@@ -817,32 +850,25 @@
         if (eventoInput) eventoInput.value="";
         eventoValido=false;
       } finally {
-        // cooldown maior para evitar toques múltiplos
         setTimeout(()=>{ submitBusy=false; }, 1200);
       }
     });
 
-    // >>> REMOVIDO: gesto de triplo clique que limpava dados <<<
+    // === FLUSH IMEDIATO ao abrir, mais batimento e background sync ===
+    if (navigator.onLine) flushDebounced();
+    startFlushHeartbeat();
+    requestBackgroundSync();
+    requestPeriodicSync();
   }
   document.addEventListener('DOMContentLoaded', bootstrap);
 
   /* ========= GLOBAL LISTENERS ========= */
-
-  // Debounce para qualquer tentativa de flush (online + visibility)
-  let __flushDebTimer;
-  function flushDebounced(){
-    clearTimeout(__flushDebTimer);
-    __flushDebTimer = setTimeout(() => {
-      window.flushPresenceQueue && window.flushPresenceQueue().catch(()=>{});
-    }, 500);
-  }
-
   window.addEventListener('resize',fitPreviewToContainer);
   window.addEventListener('orientationchange',fitPreviewToContainer);
-  window.addEventListener('online', ()=>{ setStatusOfflineUI(); flushDebounced(); if (window.updateSyncStatus) window.updateSyncStatus(); });
+  window.addEventListener('online', ()=>{ setStatusOfflineUI(); flushDebounced(); startFlushHeartbeat(); if (window.updateSyncStatus) window.updateSyncStatus(); requestBackgroundSync(); });
   window.addEventListener('offline', ()=>{ setStatusOfflineUI(); if (window.updateSyncStatus) window.updateSyncStatus(); });
 
-  // Sincroniza fila quando volta o foco (com lock no flush) — agora com debounce
+  // Sincroniza fila quando volta o foco — com debounce
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden && navigator.onLine && typeof window.flushPresenceQueue==='function') flushDebounced();
   });
@@ -906,12 +932,11 @@
         try {
           const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
 
-        reg.addEventListener('updatefound', () => {
+          reg.addEventListener('updatefound', () => {
             const newWorker = reg.installing;
             if (!newWorker) return;
             newWorker.addEventListener('statechange', () => {
               if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                // peça para ativar imediatamente (não interfere na dedupe)
                 try { newWorker.postMessage({ type: 'SKIP_WAITING' }); } catch {}
               }
             });
