@@ -345,27 +345,38 @@
   }
 
   // >>> NOVO: pedir flush ao Service Worker; retorna true se delegou
-  function requestSwFlush(){
-    try{
-      if (navigator.serviceWorker?.controller) {
-        navigator.serviceWorker.controller.postMessage({ type: 'REQUEST_FLUSH' });
-        return true;
-      }
-    }catch{}
-    return false;
-  }
+  // Pede flush ao SW; retorna true se há SW controlador
+function requestSwFlush(){
+  try{
+    if (navigator.serviceWorker?.controller) {
+      navigator.serviceWorker.controller.postMessage({ type: 'REQUEST_FLUSH' });
+      return true;
+    }
+  }catch{}
+  return false;
+}
 
   // Debounce para qualquer tentativa de flush
   let __flushDebTimer;
-  function flushDebounced(){
-    clearTimeout(__flushDebTimer);
-    __flushDebTimer = setTimeout(() => {
-      // 1) tenta delegar ao SW (evita corrida SW x página)
-      if (requestSwFlush()) return;
-      // 2) fallback local se não houver SW controlando
-      if (window.flushPresenceQueue) window.flushPresenceQueue().catch(()=>{});
-    }, 500);
-  }
+function flushDebounced(){
+  clearTimeout(__flushDebTimer);
+  __flushDebTimer = setTimeout(async () => {
+    const delegated = requestSwFlush();
+    if (delegated) {
+      // Fallback: se em 1500 ms ainda houver pendências, faz flush local
+      setTimeout(async () => {
+        try{
+          if (!navigator.onLine) return;
+          const has = await (window.presenceQueueAPI?.hasPending?.() || Promise.resolve(false));
+          if (has && window.flushPresenceQueue) await window.flushPresenceQueue();
+        }catch{}
+      }, 1500);
+      return;
+    }
+    // Sem SW controlador → flush local
+    if (window.flushPresenceQueue) window.flushPresenceQueue().catch(()=>{});
+  }, 500);
+}
 
   // Batimento: checa conectividade e pendências a cada 10s (prioriza SW)
   let __heartbeatTimer = null;
