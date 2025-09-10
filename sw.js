@@ -263,11 +263,12 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('message', (event) => {
   const { data } = event;
   if (!data) return;
-  if (data.type === 'SKIP_WAITING') {
-    self.skipWaiting();
-  } else if (data.type === 'REQUEST_FLUSH') {
-    // permite que a página peça flush “by name”
-    event.waitUntil(flushPresenceQueueSW());
+  if (data.type === 'SKIP_WAITING') self.skipWaiting();
+  if (data.type === 'REQUEST_FLUSH') {
+    // chame aqui sua rotina de flush no SW (se você a implementou no SW)
+    event.waitUntil(self.registration.sync?.register('presence-sync').catch(()=>{}));
+    // Se você também implementou flush direto no SW, pode chamá-lo aqui:
+    // event.waitUntil(flushPresenceQueueInSW());
   }
 });
 
