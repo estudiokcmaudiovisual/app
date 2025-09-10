@@ -78,6 +78,8 @@ function allQueue({ onlyNotInflight=true, limit=Infinity } = {}){
         const inflight = !!val.inflight;
         if ((!onlyNotInflight || !inflight) && out.length < limit){
           out.push({ id:c.key, ...val });
+        } else if (onlyNotInflight && inflight){
+          console.warn('flush skip: inflight', c.key);
         }
         c.continue();
       }else{
@@ -97,7 +99,7 @@ function updateInflight(id, inflight){
       const rec = get.result;
       if (!rec){ res(); return; }
       rec.inflight = !!inflight;
-      rec.inflightAt = inflight ? Date.now() : 0;
+      rec.inflightAt = inflight ? Date.now() : null;
       const put = store.put(rec);
       put.onsuccess=()=>res();
       put.onerror =()=>rej(put.error);
@@ -117,7 +119,7 @@ function clearStaleInflight(maxAgeMs = 3*60*1000){
       if(c){
         const v = c.value || {};
         if (v.inflight && (!v.inflightAt || (now - v.inflightAt) > maxAgeMs)){
-          v.inflight = false; v.inflightAt = 0;
+          v.inflight = false; v.inflightAt = null;
           c.update(v);
         }
         c.continue();

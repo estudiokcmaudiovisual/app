@@ -601,7 +601,7 @@
 
       return withDB(db=>new Promise((res,rej)=>{
         const tx=db.transaction(STORE,'readwrite');
-        tx.objectStore(STORE).add({payload, createdAt:Date.now(), inflight:false, inflightAt:0});
+        tx.objectStore(STORE).add({payload, createdAt:Date.now(), inflight:false, inflightAt:null});
         tx.oncomplete=()=>res();
         tx.onerror   =()=>rej(tx.error);
       })).then(()=>{
@@ -619,6 +619,7 @@
           if(c){
             const val = c.value || {};
             if (!val.inflight) out.push({id:c.key, ...val});
+            else console.warn('flush skip: inflight', c.key);
             c.continue();
           } else res(out);
         };
@@ -631,6 +632,7 @@
             if(c){
               const val = c.value || {};
               if (!val.inflight) out.push({id:c.key, ...val});
+              else console.warn('flush skip: inflight', c.key);
               c.continue();
             } else res(out);
           };
@@ -656,7 +658,7 @@
           const rec=get.result;
           if(!rec){ res(); return; }
           rec.inflight = !!inflight;
-          rec.inflightAt = inflight ? Date.now() : 0;
+          rec.inflightAt = inflight ? Date.now() : null;
           const put=store.put(rec);
           put.onsuccess=()=>res();
           put.onerror =()=>rej(put.error);
