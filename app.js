@@ -146,7 +146,7 @@
       try{ await cacheUserProfileSmart({ fullName: name, memberId: code, photo }); }catch{}
     }
 
-    // Fallback extra: carrega do OPFS (profile.json) se ainda não houver nome/código
+    // Fallback extra: OPFS (profile.json)
     if ((!currentData.name || !currentData.code) && typeof loadProfileShadowFile === 'function'){
       try{
         const shadow = await loadProfileShadowFile();
@@ -209,7 +209,7 @@
   }
   function setStatusOfflineUI(){
     const statusBar=document.getElementById('statusBar');
-    if (statusBar) statusBar.textContent = navigator.onLine ? "" : "Sem conexão — os registros serão enviados automaticamente quando a internet voltar.";
+    if (statusBar) statusBar.textContent = navigator.onLine ? "" : "Sem conexão — os registros serão enviados automaticamente quando a conexão voltar.";
   }
 
   /* ========= TOAST / PROC ========= */
@@ -245,7 +245,6 @@
   })();
 
   /* ========= PROFILE CACHE API ========= */
-  // (A) Cache Storage (já existente)
   async function cacheUserProfile({ fullName, memberId, photoUrl }) {
     if (!fullName || !memberId) { console.warn('[PWA] cacheUserProfile: dados faltando'); return; }
     const profile = { fullName, memberId, photoLocal: CONFIG.PROFILE_IMG_PATH, photoUrl: photoUrl || '', ts: Date.now() };
@@ -267,7 +266,7 @@
     if (photoRes) await cache.put(CONFIG.PROFILE_IMG_PATH,  photoRes);
     try { localStorage.setItem('pwa:profileCached', '1'); } catch {}
 
-    // (B) Fallback extra: grava sombra no OPFS
+    // Sombra no OPFS (fallback extra)
     try { await saveProfileShadowFile(profile); } catch {}
 
     console.log('[PWA] Perfil salvo para uso offline');
@@ -298,7 +297,7 @@
   window.getLaunchParams  = getLaunchParams;
   window.cacheUserProfileSmart = cacheUserProfileSmart;
 
-  // (C) OPFS: arquivo local "profile.json" (sem prompt) — Chromium-based
+  // OPFS helpers
   async function saveProfileShadowFile(profile){
     try{
       if (!('storage' in navigator) || !navigator.storage.getDirectory) return;
@@ -323,7 +322,6 @@
   window.loadProfileShadowFile = loadProfileShadowFile;
 
   /* ========= BACKGROUND/FOREGROUND FLUSH SUPPORT ========= */
-  // Registra Background Sync (quando disponível) para “segundo plano”
   function requestBackgroundSync(tag='presence-sync'){
     if ('serviceWorker' in navigator && 'SyncManager' in window){
       navigator.serviceWorker.ready
@@ -331,7 +329,6 @@
         .catch(()=>{});
     }
   }
-  // (Opcional) Periodic Background Sync — nem todos navegadores suportam.
   async function requestPeriodicSync(){
     try{
       if (!('serviceWorker' in navigator)) return;
@@ -344,39 +341,38 @@
     }catch{}
   }
 
-  // >>> NOVO: pedir flush ao Service Worker; retorna true se delegou
-  // Pede flush ao SW; retorna true se há SW controlador
-function requestSwFlush(){
-  try{
-    if (navigator.serviceWorker?.controller) {
-      navigator.serviceWorker.controller.postMessage({ type: 'REQUEST_FLUSH' });
-      return true;
-    }
-  }catch{}
-  return false;
-}
+  // >>> pedir flush ao SW; retorna true se delegou
+  function requestSwFlush(){
+    try{
+      if (navigator.serviceWorker?.controller) {
+        navigator.serviceWorker.controller.postMessage({ type: 'REQUEST_FLUSH' });
+        return true;
+      }
+    }catch{}
+    return false;
+  }
 
-  // Debounce para qualquer tentativa de flush
+  // Debounce com fallback cronometrado
   let __flushDebTimer;
-function flushDebounced(){
-  clearTimeout(__flushDebTimer);
-  __flushDebTimer = setTimeout(async () => {
-    const delegated = requestSwFlush();
-    if (delegated) {
-      // Fallback: se em 1500 ms ainda houver pendências, faz flush local
-      setTimeout(async () => {
-        try{
-          if (!navigator.onLine) return;
-          const has = await (window.presenceQueueAPI?.hasPending?.() || Promise.resolve(false));
-          if (has && window.flushPresenceQueue) await window.flushPresenceQueue();
-        }catch{}
-      }, 1500);
-      return;
-    }
-    // Sem SW controlador → flush local
-    if (window.flushPresenceQueue) window.flushPresenceQueue().catch(()=>{});
-  }, 500);
-}
+  function flushDebounced(){
+    clearTimeout(__flushDebTimer);
+    __flushDebTimer = setTimeout(async () => {
+      const delegated = requestSwFlush();
+      if (delegated) {
+        // Fallback: se em 1500 ms ainda houver pendências, faz flush local
+        setTimeout(async () => {
+          try{
+            if (!navigator.onLine) return;
+            const has = await (window.presenceQueueAPI?.hasPending?.() || Promise.resolve(false));
+            if (has && window.flushPresenceQueue) await window.flushPresenceQueue();
+          }catch{}
+        }, 1500);
+        return;
+      }
+      // Sem SW controlador → flush local
+      if (window.flushPresenceQueue) window.flushPresenceQueue().catch(()=>{});
+    }, 500);
+  }
 
   // Batimento: checa conectividade e pendências a cada 10s (prioriza SW)
   let __heartbeatTimer = null;
@@ -384,8 +380,8 @@ function flushDebounced(){
     clearInterval(__heartbeatTimer);
     __heartbeatTimer = setInterval(() => {
       if (!navigator.onLine) return;
-      flushDebounced();        // delega ao SW ou faz local se não houver SW
-      requestBackgroundSync(); // redundância: pede sync no SW
+      flushDebounced();
+      requestBackgroundSync();
     }, 10_000);
   }
 
@@ -415,6 +411,7 @@ function flushDebounced(){
       banner.classList.remove('show');
       setTimeout(()=>{ banner.style.display='none'; }, 200);
     }
+
     function readCurrentFields(){
       const nome = (window.currentData && currentData.name) || ($('#nome')?.value) || ($('#pName')?.textContent) || '';
       const codigo = (window.currentData && currentData.code) || ($('#codigo')?.value) || ($('#pCode')?.textContent) || '';
@@ -422,17 +419,57 @@ function flushDebounced(){
       const cleanCodigo = (codigo||'').trim().replace(/^memberId$/,'');
       return { nome: cleanNome, codigo: cleanCodigo };
     }
+
     function setBanner(kind, text){
       showBanner(kind, text, kind==='ok' ? 1600 : undefined);
       title.textContent = (kind==='ok'?'Sincronizado':kind==='warn'?'Aguardando sincronização':'Sincronização necessária');
       manualWrap.style.display = (kind==='err') ? 'flex' : 'none';
     }
+
+    // >>> Novo: botão “Sincronizar” força envio (SW + fallback local)
+    async function manualFlushNow(){
+      try{
+        window.PROC && PROC.pending('Sincronizando registros…');
+        const delegated = requestSwFlush();
+        // pequena espera para o SW iniciar
+        await new Promise(r => setTimeout(r, 300));
+        // fallback imediato se ainda houver pendências
+        if (await (window.presenceQueueAPI?.hasPending?.() || Promise.resolve(false))){
+          if (window.flushPresenceQueue) await window.flushPresenceQueue();
+        }
+        window.PROC && PROC.success('Sincronização concluída!');
+      }catch{
+        window.PROC && PROC.error('Falha na sincronização.');
+      }finally{
+        updateSyncStatus();
+      }
+    }
+
+    // >>> Atualizado: status dá prioridade a pendências
     async function updateSyncStatus(){
+      // 1) Checa pendências primeiro
+      let pendingCount = 0;
+      try{
+        const list = await (window.presenceQueueAPI?.all?.() || Promise.resolve([]));
+        pendingCount = Array.isArray(list) ? list.length : 0;
+      }catch{}
+
+      if (pendingCount > 0){
+        if (navigator.onLine){
+          setBanner('warn', `Há ${pendingCount} registro(s) pendente(s). Toque em “Sincronizar” para enviar agora.`);
+        }else{
+          setBanner('warn', `${pendingCount} registro(s) salvo(s) offline. Enviaremos quando a internet voltar.`);
+        }
+        return; // prioridade máxima para pendências
+      }
+
+      // 2) Sem pendências → volta a exibir estado do perfil/config
       const { nome, codigo } = readCurrentFields();
       if (nome && codigo){ setBanner('ok', 'Seus dados foram carregados. Tudo certo!'); return; }
       if (nome || codigo){ setBanner('warn', 'Dados parciais encontrados. Aguarde a sincronização automática…'); return; }
       setBanner('err', 'Nenhum dado encontrado. Sincronize ou informe seu nome completo para começar.');
     }
+
     async function ensureProfileFromURL({ cleanQuery=true } = {}) {
       try {
         const params = (typeof window.getLaunchParams === 'function') ? window.getLaunchParams() : new URLSearchParams(location.search);
@@ -458,14 +495,17 @@ function flushDebounced(){
       try{ await cacheUserProfileSmart({ fullName: v, memberId: currentCode, photo: (window.currentData && currentData.photoUrl) || '' }); }catch{}
       updateSyncStatus();
     });
-    btnNow && btnNow.addEventListener('click', async ()=>{
-      await ensureProfileFromURL({ cleanQuery:false });
-      await updateSyncStatus();
-    });
+
+    btnNow && btnNow.addEventListener('click', manualFlushNow);
     btnClose && btnClose.addEventListener('click', hideBannerSmooth);
 
     window.updateSyncStatus = updateSyncStatus;
     window.ensureProfileFromURL = ensureProfileFromURL;
+
+    // Atualiza o banner com eventos da fila também
+    addEventListener('presence:queued', updateSyncStatus);
+    addEventListener('presence:sent', updateSyncStatus);
+    addEventListener('presence:sent-now', updateSyncStatus);
 
     window.addEventListener('online', updateSyncStatus);
     window.addEventListener('offline', updateSyncStatus);
@@ -475,7 +515,7 @@ function flushDebounced(){
     });
   })();
 
-  /* ========= FILA / ENVIO (IndexedDB, com dedupe e flush lock) ========= */
+  /* ========= FILA / ENVIO (IndexedDB, com dedupe e flush com lock) ========= */
   (function(){
     const ENDPOINT = CONFIG.ENDPOINT;
     const DB_NAME = 'cracha-db'; const STORE = 'presenceQueue';
@@ -505,7 +545,7 @@ function flushDebounced(){
         const raw = localStorage.getItem(LS_LOCK_KEY);
         if (raw){
           const { t } = JSON.parse(raw);
-          if (now - t < ttlMs) return false; // outro flush segurando a trava
+          if (now - t < ttlMs) return false;
         }
         localStorage.setItem(LS_LOCK_KEY, JSON.stringify({ t: now }));
         return true;
@@ -567,7 +607,6 @@ function flushDebounced(){
         tx.onerror   =()=>rej(tx.error);
       })).then(()=>{
         dispatchEvent(new CustomEvent('presence:queued', { detail: { payload } }));
-        // pede Background Sync sempre que enfileirar
         if (window.requestBackgroundSync) window.requestBackgroundSync('presence-sync');
       });
     }
@@ -661,8 +700,7 @@ function flushDebounced(){
           await postForm(ENDPOINT, enriched);
           if (enriched.nonce){ sentNonces.add(enriched.nonce); saveSentSet(sentNonces); }
           window.PWA_TOAST && PWA_TOAST.show({ title:'Presença', text:'Registro enviado com sucesso.', kind:'success' });
-          // >>> importante: delega flush das pendências ao SW (ou faz local se não houver SW)
-          flushDebounced();
+          flushDebounced(); // delega ao SW; fallback local se preciso
           dispatchEvent(new CustomEvent('presence:sent-now', { detail: { payload: enriched } }));
           return { ok:true, queued:false };
         }catch(e){
@@ -919,8 +957,8 @@ function flushDebounced(){
       }
     });
 
-    // === FLUSH IMEDIATO ao abrir, mais batimento e background sync ===
-    if (navigator.onLine) flushDebounced(); // delega ao SW
+    // FLUSH imediato ao abrir, mais batimento e background sync
+    if (navigator.onLine) flushDebounced();
     startFlushHeartbeat();
     requestBackgroundSync();
     requestPeriodicSync();
@@ -932,7 +970,7 @@ function flushDebounced(){
   window.addEventListener('orientationchange',fitPreviewToContainer);
   window.addEventListener('online', ()=>{
     setStatusOfflineUI();
-    flushDebounced(); // delega ao SW ao ficar online
+    flushDebounced();
     startFlushHeartbeat();
     if (window.updateSyncStatus) window.updateSyncStatus();
     requestBackgroundSync();
