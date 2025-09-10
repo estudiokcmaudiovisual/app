@@ -145,6 +145,16 @@
       setBadgeData(name,code,photo);
       try{ await cacheUserProfileSmart({ fullName: name, memberId: code, photo }); }catch{}
     }
+
+    // Fallback extra: carrega do OPFS (profile.json) se ainda não houver nome/código
+    if ((!currentData.name || !currentData.code) && typeof loadProfileShadowFile === 'function'){
+      try{
+        const shadow = await loadProfileShadowFile();
+        if (shadow?.fullName && shadow?.memberId){
+          setBadgeData(shadow.fullName, shadow.memberId, shadow.photoUrl);
+        }
+      }catch{}
+    }
   }
 
   /* ========= QR / CAMERA ========= */
@@ -235,9 +245,10 @@
   })();
 
   /* ========= PROFILE CACHE API ========= */
+  // (A) Cache Storage (já existente)
   async function cacheUserProfile({ fullName, memberId, photoUrl }) {
     if (!fullName || !memberId) { console.warn('[PWA] cacheUserProfile: dados faltando'); return; }
-    const profile = { fullName, memberId, photoLocal: CONFIG.PROFILE_IMG_PATH, ts: Date.now() };
+    const profile = { fullName, memberId, photoLocal: CONFIG.PROFILE_IMG_PATH, photoUrl: photoUrl || '', ts: Date.now() };
     const profileRes = new Response(JSON.stringify(profile), { headers: { 'Content-Type': 'application/json' } });
 
     let photoRes = null;
@@ -255,6 +266,10 @@
     await cache.put(CONFIG.PROFILE_JSON_PATH, profileRes);
     if (photoRes) await cache.put(CONFIG.PROFILE_IMG_PATH,  photoRes);
     try { localStorage.setItem('pwa:profileCached', '1'); } catch {}
+
+    // (B) Fallback extra: grava sombra no OPFS
+    try { await saveProfileShadowFile(profile); } catch {}
+
     console.log('[PWA] Perfil salvo para uso offline');
   }
   async function loadUserProfile() {
@@ -263,7 +278,7 @@
       const res = await cache.match(CONFIG.PROFILE_JSON_PATH);
       if (!res) return null;
       const profile = await res.json();
-      return { ...profile, photoUrl: profile.photoLocal || CONFIG.PROFILE_IMG_PATH };
+      return { ...profile, photoUrl: profile.photoUrl || profile.photoLocal || CONFIG.PROFILE_IMG_PATH };
     } catch { return null; }
   }
   function getLaunchParams(){
@@ -282,6 +297,30 @@
   window.loadUserProfile  = loadUserProfile;
   window.getLaunchParams  = getLaunchParams;
   window.cacheUserProfileSmart = cacheUserProfileSmart;
+
+  // (C) OPFS: arquivo local "profile.json" (sem prompt) — Chromium-based
+  async function saveProfileShadowFile(profile){
+    try{
+      if (!('storage' in navigator) || !navigator.storage.getDirectory) return;
+      const root = await navigator.storage.getDirectory();
+      const fh = await root.getFileHandle('profile.json', { create:true });
+      const w = await fh.createWritable();
+      await w.write(new Blob([JSON.stringify(profile)], { type:'application/json' }));
+      await w.close();
+    }catch{}
+  }
+  async function loadProfileShadowFile(){
+    try{
+      if (!('storage' in navigator) || !navigator.storage.getDirectory) return null;
+      const root = await navigator.storage.getDirectory();
+      const fh = await root.getFileHandle('profile.json', { create:false });
+      const file = await fh.getFile();
+      const txt = await file.text();
+      return JSON.parse(txt);
+    }catch{ return null; }
+  }
+  window.saveProfileShadowFile = saveProfileShadowFile;
+  window.loadProfileShadowFile = loadProfileShadowFile;
 
   /* ========= BACKGROUND/FOREGROUND FLUSH SUPPORT ========= */
   // Registra Background Sync (quando disponível) para “segundo plano”
@@ -305,23 +344,37 @@
     }catch{}
   }
 
+  // >>> NOVO: pedir flush ao Service Worker; retorna true se delegou
+  function requestSwFlush(){
+    try{
+      if (navigator.serviceWorker?.controller) {
+        navigator.serviceWorker.controller.postMessage({ type: 'REQUEST_FLUSH' });
+        return true;
+      }
+    }catch{}
+    return false;
+  }
+
   // Debounce para qualquer tentativa de flush
   let __flushDebTimer;
   function flushDebounced(){
     clearTimeout(__flushDebTimer);
     __flushDebTimer = setTimeout(() => {
-      window.flushPresenceQueue && window.flushPresenceQueue().catch(()=>{});
+      // 1) tenta delegar ao SW (evita corrida SW x página)
+      if (requestSwFlush()) return;
+      // 2) fallback local se não houver SW controlando
+      if (window.flushPresenceQueue) window.flushPresenceQueue().catch(()=>{});
     }, 500);
   }
 
-  // Batimento: checa conectividade e pendências a cada 10s
+  // Batimento: checa conectividade e pendências a cada 10s (prioriza SW)
   let __heartbeatTimer = null;
   function startFlushHeartbeat(){
     clearInterval(__heartbeatTimer);
     __heartbeatTimer = setInterval(() => {
       if (!navigator.onLine) return;
-      flushDebounced();              // foreground (e também quando app está em background mas aberto)
-      requestBackgroundSync();       // redundância: pede sync no SW
+      flushDebounced();        // delega ao SW ou faz local se não houver SW
+      requestBackgroundSync(); // redundância: pede sync no SW
     }, 10_000);
   }
 
@@ -433,7 +486,7 @@
     let flushPromise = null;
     const inFlight = new Set();
 
-    // ===== NOVO: Fallback de lock cross-tab via localStorage =====
+    // Fallback de lock cross-tab via localStorage
     const LS_LOCK_KEY = 'pwa:presenceFlushLock_v1';
     function acquireLsLock(ttlMs = 10000){
       try{
@@ -540,7 +593,7 @@
       } finally { clearTimeout(t); }
     }
 
-    // ===== NOVO: chave estável do registro (impede duplicata na fila) =====
+    // chave estável do registro (impede duplicata na fila)
     function stableKeyFrom(rec){
       const norm = s => String(s||'').trim().toLowerCase();
       const base = [norm(rec.nome), norm(rec.codigo), norm(rec.evento)].join('|');
@@ -597,7 +650,8 @@
           await postForm(ENDPOINT, enriched);
           if (enriched.nonce){ sentNonces.add(enriched.nonce); saveSentSet(sentNonces); }
           window.PWA_TOAST && PWA_TOAST.show({ title:'Presença', text:'Registro enviado com sucesso.', kind:'success' });
-          flushPresenceQueue().catch(()=>{});
+          // >>> importante: delega flush das pendências ao SW (ou faz local se não houver SW)
+          flushDebounced();
           dispatchEvent(new CustomEvent('presence:sent-now', { detail: { payload: enriched } }));
           return { ok:true, queued:false };
         }catch(e){
@@ -689,7 +743,7 @@
   window.runDiagnostics = runDiagnostics;
 
   async function resetAppData() {
-    // Mantemos a função, mas não há mais gesto oculto para acioná-la.
+    // Mantemos a função, mas sem gesto oculto para acioná-la.
     try { await stopQR(); } catch {}
     try { localStorage.clear && localStorage.clear(); } catch {}
     try {
@@ -855,7 +909,7 @@
     });
 
     // === FLUSH IMEDIATO ao abrir, mais batimento e background sync ===
-    if (navigator.onLine) flushDebounced();
+    if (navigator.onLine) flushDebounced(); // delega ao SW
     startFlushHeartbeat();
     requestBackgroundSync();
     requestPeriodicSync();
@@ -865,10 +919,16 @@
   /* ========= GLOBAL LISTENERS ========= */
   window.addEventListener('resize',fitPreviewToContainer);
   window.addEventListener('orientationchange',fitPreviewToContainer);
-  window.addEventListener('online', ()=>{ setStatusOfflineUI(); flushDebounced(); startFlushHeartbeat(); if (window.updateSyncStatus) window.updateSyncStatus(); requestBackgroundSync(); });
+  window.addEventListener('online', ()=>{
+    setStatusOfflineUI();
+    flushDebounced(); // delega ao SW ao ficar online
+    startFlushHeartbeat();
+    if (window.updateSyncStatus) window.updateSyncStatus();
+    requestBackgroundSync();
+  });
   window.addEventListener('offline', ()=>{ setStatusOfflineUI(); if (window.updateSyncStatus) window.updateSyncStatus(); });
 
-  // Sincroniza fila quando volta o foco — com debounce
+  // Sincroniza fila quando volta o foco — com debounce (prioriza SW)
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden && navigator.onLine && typeof window.flushPresenceQueue==='function') flushDebounced();
   });
