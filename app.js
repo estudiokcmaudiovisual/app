@@ -4,7 +4,7 @@
 
   /* ========= CONFIG ========= */
   const CONFIG = {
-    ENDPOINT: "https://script.google.com/macros/s/AKfycbwHk6o909wUncUcY0g0nRgJSpiZ-ZI7MtZjxMRCTrVU2yh9zm_M9uULA6SBYnTcuL0mEw/exec",
+    ENDPOINT: "https://script.google.com/macros/s/AKfycbwuP_Li7FulxUm72mrvS-ba06cn8nUY8gKZ7TPY5LpGLWFEGWCmhJsIg3F5Kz30lPkpIA/exec",
     CARD_WIDTH: 638,
     CARD_HEIGHT: 1011,
     QR_SIZE: 170,
