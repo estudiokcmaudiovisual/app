@@ -1,8 +1,8 @@
 {
   "id": "https://app.nuhlc.com/",
-  "name": "Crachá Digital — IISNHCM",
-  "short_name": "Crachá",
-  "description": "Crachá Digital com frente/verso, QR/Barcode, registro de presença offline e sincronização automática.",
+  "name": "Cracá - RPD - IISNHCM",
+  "short_name": "Cracá - RPD - IISNHCM",
+  "description": "Crachá Digital e Registro de Presença Digital, QR/Barcode, registro de presença online e offline e sincronização automática.",
   "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",
